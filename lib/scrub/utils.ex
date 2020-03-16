@@ -1,4 +1,4 @@
-defmodule PLC.Utils do
+defmodule Scrub.Utils do
   @doc """
   Convert an IP address to tuple form
   Examples:
