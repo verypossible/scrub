@@ -79,7 +79,7 @@ defmodule Scrub.CIP.ConnectionManager do
     request_size = byte_size(request_path)
 
     request_path_padding =
-      case rem(byte_size(request_path), 2) do
+      case rem(request_size, 2) do
         0 -> 0
         num -> 2 - num
       end
