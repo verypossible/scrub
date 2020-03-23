@@ -5,7 +5,7 @@ defmodule Scrub do
   alias Scrub.CIP.ConnectionManager
   alias Scrub.Session
 
-  def get_tag(host, tag) do
+  def read_tag(host, tag) do
     {:ok, session} = Scrub.Session.start_link(host)
     data = ConnectionManager.encode_service(:large_forward_open)
     {:ok, resp} = Session.send_rr_data(session, data)
