@@ -6,7 +6,7 @@ defmodule Scrub.CIP.ConnectionManager do
 
   @services [
     large_forward_open: 0x5B,
-    unconnected_send: 0x52
+    unconnected_send: 0x4C
   ]
 
   def encode_service(_, _opts \\ [])
@@ -85,18 +85,17 @@ defmodule Scrub.CIP.ConnectionManager do
       end
 
     request_path_padded = <<request_path::binary, 0x00::size(request_path_padding)-unit(8)>>
-    request_path_padded_size = byte_size(request_path_padded)
-    request_words = (request_path_padded_size / 2 + 1) |> floor
+    request_path = <<0x91, byte_size(request_path) :: usint, request_path_padded :: binary>>
+
+    request_words = (byte_size(request_path) / 2) |> floor
+    read_elements = opts[:read_elements] || 1
 
     <<
       0::size(1),
       Keyword.get(@services, :unconnected_send)::size(7),
       request_words::usint,
-      # segment_sub_type
-      0x91,
-      request_size::usint,
-      request_path_padded::binary,
-      0x01::little-size(6)-unit(8)
+      request_path::binary,
+      read_elements :: ulint
     >>
   end
 
