@@ -62,11 +62,21 @@ defmodule Scrub.CIP.Symbol do
   defp decode_tags(<<>>, tags), do: Enum.reverse(tags)
 
   def type(<<type_l :: binary(8, 1), structure :: size(1), array_dims :: size(2), reserved :: size(1), type_h :: binary(4, 1)>>) do
-    %{
-      structure: type_structure(structure, reserved),
-      array_dims: array_dims,
-      type: <<type_l :: little - binary(8, 1), type_h :: little - binary(4, 1)>>
-    }
+    case type_structure(structure, reserved) do
+      structure when structure in [:atomic, :system] ->
+        %{
+          structure: structure,
+          array_dims: array_dims,
+          type: type_decode(<<type_l :: little - binary(8, 1), type_h :: little - binary(4, 1)>>)
+        }
+
+      :structured ->
+        %{
+          structure: :structured,
+          array_dims: array_dims,
+          template_instance: <<type_l :: little - binary(8, 1), 0 :: size(4), type_h :: little - binary(4, 1),>>
+        }
+    end
   end
 
   #   type_structure(structure, reserved)
@@ -76,15 +86,43 @@ defmodule Scrub.CIP.Symbol do
 
   def filter(tags) when is_list(tags) do
     tags
-    # |> Enum.reject(& &1.structure == :atomic && &1.type not in 0x001..0x0FF)
+    |> Enum.reject(& &1.structure == :atomic && is_tuple(&1.type) && elem(&1.type, 0) == :unknown)
     # |> Enum.reject(& &1.structure == :structured && &1.type not in 0x100..0xEFF)
     |> Enum.reject(& &1.structure == :system)
     |> Enum.reject(& String.starts_with?(&1.name, "__"))
     |> Enum.reject(& String.contains?(&1.name, ":"))
   end
 
-  def filter() do
+  def type_decode(<<0xC1, pos :: size(4)>>), do: {:bool, pos}
+  def type_decode(<<0xC2, _ :: size(4)>>), do: :sint
+  def type_decode(<<0xC3, _ :: size(4)>>), do: :int
+  def type_decode(<<0xC4, _ :: size(4)>>), do: :dint
+  def type_decode(<<0xC5, _ :: size(4)>>), do: :lint
+  def type_decode(<<0xC6, _ :: size(4)>>), do: :usint
+  def type_decode(<<0xC7, _ :: size(4)>>), do: :uint
+  def type_decode(<<0xC8, _ :: size(4)>>), do: :udint
+  def type_decode(<<0xC9, _ :: size(4)>>), do: :ulint
+  def type_decode(<<0xCA, _ :: size(4)>>), do: :real
+  def type_decode(<<0xCB, _ :: size(4)>>), do: :lreal
+  def type_decode(<<0xCC, _ :: size(4)>>), do: :stime
+  def type_decode(<<0xCD, _ :: size(4)>>), do: :date
+  def type_decode(<<0xCE, _ :: size(4)>>), do: :time_of_day
+  def type_decode(<<0xCF, _ :: size(4)>>), do: :date_and_time
+  def type_decode(<<0xD0, _ :: size(4)>>), do: :string
+  def type_decode(<<0xD1, _ :: size(4)>>), do: :byte
+  def type_decode(<<0xD2, _ :: size(4)>>), do: :word
+  def type_decode(<<0xD3, _ :: size(4)>>), do: :dword
+  def type_decode(<<0xD4, _ :: size(4)>>), do: :lword
+  def type_decode(<<0xD5, _ :: size(4)>>), do: :string2
+  def type_decode(<<0xD6, _ :: size(4)>>), do: :ftime
+  def type_decode(<<0xD7, _ :: size(4)>>), do: :ltime
+  def type_decode(<<0xD8, _ :: size(4)>>), do: :itime
+  def type_decode(<<0xD9, _ :: size(4)>>), do: :stringn
+  def type_decode(<<0xDA, _ :: size(4)>>), do: :short_string
+  def type_decode(<<0xDB, _ :: size(4)>>), do: :time
+  def type_decode(<<0xDC, _ :: size(4)>>), do: :epath
+  def type_decode(<<0xDD, _ :: size(4)>>), do: :engunit
+  def type_decode(<<0xDE, _ :: size(4)>>), do: :stringi
 
-  end
-
+  def type_decode(bits), do: {:unknown, bits}
 end

@@ -4,6 +4,7 @@ defmodule Scrub do
 
   alias Scrub.CIP.ConnectionManager
   alias Scrub.CIP.Symbol
+  alias Scrub.CIP.Template
   alias Scrub.Session
 
   require IEx
@@ -47,6 +48,31 @@ defmodule Scrub do
 
       error ->
         error
+    end
+  end
+
+  def get_template(host, template_instance) do
+    with {:ok, session} <- Scrub.Session.start_link(host),
+         data <- ConnectionManager.encode_service(:large_forward_open),
+         {:ok, resp} <- Session.send_rr_data(session, data),
+         {:ok, %{orig_network_id: conn}} <- ConnectionManager.decode(resp),
+         data <- Template.encode_service(:get_attribute_list, instance_id: template_instance),
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+
+      Template.decode(resp)
+    end
+  end
+
+  def get_structure(host, %{instance_id: instance_id, template_instance: template_instance}) do
+    with {:ok, %{definition_size: size}} <- get_template(host, template_instance),
+      {:ok, session} <- Scrub.Session.start_link(host),
+      data <- ConnectionManager.encode_service(:large_forward_open),
+      {:ok, resp} <- Session.send_rr_data(session, data),
+      {:ok, %{orig_network_id: conn}} <- ConnectionManager.decode(resp),
+      data <- Template.encode_service(:read_template_service, instance_id: template_instance, bytes: ((size * 4) - 23)),
+      {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+
+      Template.decode(resp)
     end
   end
 end
