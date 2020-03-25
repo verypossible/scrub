@@ -89,6 +89,7 @@ defmodule Scrub.Session.Protocol do
           options::udint, data::binary>>
       ) do
     header = %{
+      cmd: cmd,
       length: length,
       session_handle: session_handle,
       status: status,
@@ -96,6 +97,19 @@ defmodule Scrub.Session.Protocol do
       options: options
     }
 
+    cond do
+      byte_size(data) < length ->
+        :partial
+      true ->
+        decode(header, data)
+    end
+  end
+
+  def decode(data) do
+    {:error, :malformed_packet, data}
+  end
+
+  def decode(%{cmd: cmd} = header, data) do
     case Enum.find(@encapsulation_commands, &(elem(&1, 1) == cmd)) do
       nil ->
         {:error, {:unknown_command, cmd}}
@@ -103,10 +117,6 @@ defmodule Scrub.Session.Protocol do
       {cmd, _} ->
         decode(cmd, header, data)
     end
-  end
-
-  def decode(data) do
-    {:error, :malformed_packet, data}
   end
 
   def decode(:send_rr_data, _header, data) do

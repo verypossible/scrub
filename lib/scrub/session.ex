@@ -142,9 +142,18 @@ defmodule Scrub.Session do
   end
 
   defp sync_send(socket, data, timeout) do
-    with :ok <- :gen_tcp.send(socket, data),
-         {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
-      Protocol.decode(resp)
+    with :ok <- :gen_tcp.send(socket, data) do
+      recv(socket, <<>>, timeout)
+    end
+  end
+
+  defp recv(socket, buffer, timeout) do
+    with {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
+      resp = buffer <> resp
+      case Protocol.decode(resp) do
+        :partial -> recv(socket, resp, timeout)
+        resp -> resp
+      end
     end
   end
 end

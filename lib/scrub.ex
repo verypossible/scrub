@@ -3,7 +3,10 @@ defmodule Scrub do
   def serial_number, do: "pTLC"
 
   alias Scrub.CIP.ConnectionManager
+  alias Scrub.CIP.Symbol
   alias Scrub.Session
+
+  require IEx
 
   def read_tag(host, tag) do
     with {:ok, session} <- Scrub.Session.start_link(host),
@@ -14,6 +17,36 @@ defmodule Scrub do
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
       ConnectionManager.decode(resp)
+    end
+  end
+
+  def list_tags(host) do
+    with {:ok, session} <- Scrub.Session.start_link(host),
+         data <- ConnectionManager.encode_service(:large_forward_open),
+         {:ok, resp} <- Session.send_rr_data(session, data),
+         {:ok, %{orig_network_id: conn}} <- ConnectionManager.decode(resp),
+         data <- Symbol.encode_service(:get_instance_attribute_list),
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+
+      decode_tag_list(session, conn, resp)
+    end
+  end
+
+  defp decode_tag_list(session, conn, binary_resp, tags \\ []) do
+    case Symbol.decode(binary_resp) do
+      {:ok, %{status: :too_much_data, tags: new_tags}} ->
+        [%{instance_id: id} | _] = Enum.sort(new_tags, & &1.instance_id > &2.instance_id)
+
+        data = Symbol.encode_service(:get_instance_attribute_list, instance_id: (id + 1))
+        {:ok, resp} = Session.send_unit_data(session, conn, data)
+
+        decode_tag_list(session, conn, resp, new_tags ++ tags)
+
+      {:ok, %{status: :success, tags: new_tags}} ->
+        {:ok, Enum.sort(new_tags ++ tags, & &1.instance_id > &2.instance_id)}
+
+      error ->
+        error
     end
   end
 end

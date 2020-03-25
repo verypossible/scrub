@@ -46,7 +46,7 @@ defmodule PLC do
           Enum.each(1..shard, fn(_) ->
             request_tag(session, conn, "REG_PWRUP_MEM")
           end)
-        end) |> IO.inspect
+        end)
       end)
     end)
   end
