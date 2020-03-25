@@ -2,7 +2,6 @@ defmodule Scrub.CIP.Symbol do
   import Scrub.BinaryUtils, warn: false
 
   alias Scrub.CIP
-  alias Scrub.CIP.Type
 
   @services [
     get_instance_attribute_list: 0x55
@@ -56,8 +55,36 @@ defmodule Scrub.CIP.Symbol do
   end
 
   defp decode_tags(<<instance_id :: udint, name_len :: uint, name :: binary(name_len, 8), type :: binary(2, 8), tail :: binary>>, tags) do
-    decode_tags(tail, [%{name: name, type: Type.decode(type), instance_id: instance_id} | tags])
+    tag = Map.merge(%{name: name, instance_id: instance_id}, type(type))
+    decode_tags(tail, [tag | tags])
   end
 
   defp decode_tags(<<>>, tags), do: Enum.reverse(tags)
+
+  def type(<<structure :: size(1), array_dims :: size(2), reserved :: size(1), type :: binary(12, 1)>>) do
+    %{
+      structure: type_structure(structure, reserved),
+      array_dims: array_dims,
+      type: type
+    }
+  end
+
+  #   type_structure(structure, reserved)
+  def type_structure(_, 1), do: :system
+  def type_structure(0, 0), do: :atomic
+  def type_structure(1, 0), do: :structured
+
+  def filter(tags) when is_list(tags) do
+    tags
+    # |> Enum.reject(& &1.structure == :atomic && &1.type not in 0x001..0x0FF)
+    # |> Enum.reject(& &1.structure == :structured && &1.type not in 0x100..0xEFF)
+    |> Enum.reject(& &1.structure == :system)
+    |> Enum.reject(& String.starts_with?(&1.name, "__"))
+    |> Enum.reject(& String.contains?(&1.name, ":"))
+  end
+
+  def filter() do
+
+  end
+
 end
