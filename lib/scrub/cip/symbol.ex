@@ -61,7 +61,7 @@ defmodule Scrub.CIP.Symbol do
 
   defp decode_tags(<<>>, tags), do: Enum.reverse(tags)
 
-  def type(<<structure :: size(1), array_dims :: size(2), reserved :: size(1), type :: binary(12, 1)>>) do
+  def type(<<type :: binary(12, 1), reserved :: size(1), array_dims :: size(2), structure :: size(1)>>) do
     %{
       structure: type_structure(structure, reserved),
       array_dims: array_dims,
