@@ -2,6 +2,7 @@ defmodule Scrub.CIP.Template do
   import Scrub.BinaryUtils, warn: false
 
   alias Scrub.CIP
+  alias Scrub.CIP.Symbol
 
   @services [
     get_attribute_list: 0x03,
@@ -77,7 +78,38 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_service(:read_template_service, %{status: status}, data) do
-    {:ok, data}
+    case String.split(data, <<0x3B>>, parts: 2) do
+      [member_info, member_names] ->
+
+        member_info_list = :binary.bin_to_list(member_info)
+
+        {template_name, member_info} =
+          Enum.reverse(member_info_list)
+          |> Enum.split_while(&String.printable?(<<&1>>))
+
+        template_name = Enum.reverse(template_name)
+        member_info =
+          member_info
+          |> Enum.reverse()
+          |> :binary.list_to_bin()
+
+        member_info = decode_member_info(member_info, [])
+        [_magic | member_names] = String.split(member_names, <<0x00>>)
+
+        members =
+          Enum.zip(member_names, member_info)
+          |> Enum.map(&Map.put(elem(&1, 1), :name, elem(&1, 0)))
+
+        payload = %{
+          template_name: to_string(template_name),
+          members: members
+        }
+
+        {:ok, payload}
+
+      _ ->
+        {:error, :broken}
+    end
   end
 
   defp decode_attributes(<<>>, acc), do: Enum.into(acc, %{})
@@ -101,4 +133,15 @@ defmodule Scrub.CIP.Template do
   defp decode_attribute(<<0x01 :: uint, status :: uint, crc :: uint, tail :: binary>>) do
     {{:crc, crc}, tail}
   end
+
+  defp decode_member_info(<<>>, acc), do: acc
+  defp decode_member_info(member_info, acc) do
+    {member_info, tail} = decode_member_info(member_info)
+    decode_member_info(tail, [member_info | acc])
+  end
+
+  defp decode_member_info(<<array_size :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
+    {Map.merge(%{array_size: array_size, offset: offset}, Symbol.type(type)), tail}
+  end
+
 end
