@@ -140,8 +140,8 @@ defmodule Scrub.CIP.Template do
     decode_member_info(tail, [member_info | acc])
   end
 
-  defp decode_member_info(<<array_size :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
-    {Map.merge(%{array_size: array_size, offset: offset}, Symbol.type(type)), tail}
+  defp decode_member_info(<<array_length :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
+    {Map.merge(%{array_length: array_length, offset: offset}, Symbol.type(type)), tail}
   end
 
 end
