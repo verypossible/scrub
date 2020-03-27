@@ -21,14 +21,13 @@ defmodule Scrub.CIP.Type do
           {value, tail} =
             Enum.reduce(1..dims, {[], data}, fn(_, {values, data}) ->
               {value, tail} =
-                Enum.reduce(1..length, {<<>>, data}, fn(pos, {value, data}) ->
-                  IO.inspect pos
-                  {more, tail} = decode_type(type, data)
-                  {value <> more, tail}
+                Enum.reduce(1..length, {[], data}, fn(_, {values, data}) ->
+                  {value, tail} = decode_type(type, data)
+                  {[value | values], tail}
                 end)
               {[value | values], tail}
             end)
-          {nil, tail, [Map.put(member, :value, value)]}
+          {nil, tail, [Map.put(member, :value, value) | acc]}
       end)
     case result do
       {_, "", structure} -> structure

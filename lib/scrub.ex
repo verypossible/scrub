@@ -27,12 +27,12 @@ defmodule Scrub do
   end
 
   def read_tag({session, conn}, %{structure: :structured, template_instance: instance} = tag) do
-    with {:ok, template} <- get_template({session, conn}, instance),
-         {:ok, structure} <- get_structure({session, conn}, tag),
+    with {:ok, template_attributes} <- get_template_attributes({session, conn}, instance),
+         {:ok, template} <- read_template({session, conn}, tag),
          data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
-      ConnectionManager.decode(resp, Map.merge(template, structure))
+      ConnectionManager.decode(resp, Map.merge(template_attributes, template))
     end
   end
   def read_tag({session, conn}, %{} = tag) do
@@ -94,7 +94,7 @@ defmodule Scrub do
     end
   end
 
-  def get_template({session, conn}, <<template_instance :: binary(2, 8)>>) do
+  def get_template_attributes({session, conn}, <<template_instance :: binary(2, 8)>>) do
     with data <- Template.encode_service(:get_attribute_list, instance_id: template_instance),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
@@ -102,20 +102,20 @@ defmodule Scrub do
     end
   end
 
-  def get_template(host, template_instance) when is_binary(host) do
+  def get_template_attributes(host, template_instance) when is_binary(host) do
     open_conn(host)
-    |> get_template(template_instance)
+    |> get_template_attributes(template_instance)
   end
 
-  def get_structure({session, conn}, tag) when is_binary(tag) do
+  def read_template({session, conn}, tag) when is_binary(tag) do
     case find_tag({session, conn}, tag) do
-      {:ok, tag} -> get_structure({session, conn}, tag)
+      {:ok, tag} -> read_template({session, conn}, tag)
       error -> error
     end
   end
 
-  def get_structure({session, conn}, %{template_instance: template_instance}) do
-    with {:ok, %{definition_size: size}} <- get_template({session, conn}, template_instance),
+  def read_template({session, conn}, %{template_instance: template_instance}) do
+    with {:ok, %{definition_size: size}} <- get_template_attributes({session, conn}, template_instance),
       data <- Template.encode_service(:read_template_service, instance_id: template_instance, bytes: ((size * 4) - 23)),
       {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
@@ -123,9 +123,9 @@ defmodule Scrub do
     end
   end
 
-  def get_structure(host, tag) when is_binary(host) do
+  def read_template(host, tag) when is_binary(host) do
     open_conn(host)
-    |> get_structure(tag)
+    |> read_template(tag)
   end
 
 

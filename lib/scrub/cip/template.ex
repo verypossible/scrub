@@ -73,11 +73,11 @@ defmodule Scrub.CIP.Template do
     end
   end
 
-  defp decode_service(:get_attribute_list, %{status: status}, <<_count :: uint, attributes :: binary>>) do
+  defp decode_service(:get_attribute_list, %{status: _status}, <<_count :: uint, attributes :: binary>>) do
     {:ok, decode_attributes(attributes, [])}
   end
 
-  defp decode_service(:read_template_service, %{status: status}, data) do
+  defp decode_service(:read_template_service, %{status: _status}, data) do
     case String.split(data, <<0x3B>>, parts: 2) do
       [member_info, member_names] ->
 
@@ -118,19 +118,19 @@ defmodule Scrub.CIP.Template do
     decode_attributes(tail, [attribute | acc])
   end
 
-  defp decode_attribute(<<0x04 :: uint, status :: uint, definition_size :: udint, tail :: binary>>) do
+  defp decode_attribute(<<0x04 :: uint, _status :: uint, definition_size :: udint, tail :: binary>>) do
     {{:definition_size, definition_size}, tail}
   end
 
-  defp decode_attribute(<<0x05 :: uint, status :: uint, structure_size :: udint, tail :: binary>>) do
+  defp decode_attribute(<<0x05 :: uint, _status :: uint, structure_size :: udint, tail :: binary>>) do
     {{:structure_size, structure_size}, tail}
   end
 
-  defp decode_attribute(<<0x02 :: uint, status :: uint, member_count :: uint, tail :: binary>>) do
+  defp decode_attribute(<<0x02 :: uint, _status :: uint, member_count :: uint, tail :: binary>>) do
     {{:member_count, member_count}, tail}
   end
 
-  defp decode_attribute(<<0x01 :: uint, status :: uint, crc :: uint, tail :: binary>>) do
+  defp decode_attribute(<<0x01 :: uint, _status :: uint, crc :: uint, tail :: binary>>) do
     {{:crc, crc}, tail}
   end
 
