@@ -92,7 +92,8 @@ defmodule Scrub.CIP.Template do
           member_info
           |> Enum.reverse()
           |> :binary.list_to_bin()
-          |> IO.inspect(base: :hex)
+          |> Scrub.inspect()
+
         member_info = decode_member_info(member_info, [])
         [_magic | member_names] = String.split(member_names, <<0x00>>)
 
@@ -134,14 +135,25 @@ defmodule Scrub.CIP.Template do
     {{:crc, crc}, tail}
   end
 
-  defp decode_member_info(<<>>, acc), do: acc
+  defp decode_member_info(<<>>, acc), do: Enum.reverse(acc)
   defp decode_member_info(member_info, acc) do
     {member_info, tail} = decode_member_info(member_info)
     decode_member_info(tail, [member_info | acc])
   end
 
   defp decode_member_info(<<array_length :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
-    {Map.merge(%{array_length: array_length, offset: offset}, Symbol.type(type)), tail}
-  end
+    Scrub.inspect type
+    type = Symbol.type_decode(type)
+    member = %{type: type, offset: offset}
 
+    member =
+      case type do
+        :bool ->
+          Map.put(member, :bit_location, array_length)
+
+        _type ->
+          Map.put(member, :array_length, array_length)
+      end
+    {member, tail}
+  end
 end
