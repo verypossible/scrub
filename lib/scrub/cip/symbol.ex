@@ -67,7 +67,7 @@ defmodule Scrub.CIP.Symbol do
         %{
           structure: structure,
           array_dims: array_dims,
-          type: type_decode(<<type_l :: little - binary(8, 1), type_h :: little - binary(4, 1)>>)
+          type: type_decode(<<type_l :: little - binary(8, 1), 0 :: size(4), type_h :: little - binary(4, 1)>>)
         }
 
       :structured ->
@@ -99,36 +99,36 @@ defmodule Scrub.CIP.Symbol do
   end
   def filter_structure(_), do: false
 
-  def type_decode(<<0xC1, pos :: size(4)>>), do: {:bool, pos}
-  def type_decode(<<0xC2, _ :: size(4)>>), do: :sint
-  def type_decode(<<0xC3, _ :: size(4)>>), do: :int
-  def type_decode(<<0xC4, _ :: size(4)>>), do: :dint
-  def type_decode(<<0xC5, _ :: size(4)>>), do: :lint
-  def type_decode(<<0xC6, _ :: size(4)>>), do: :usint
-  def type_decode(<<0xC7, _ :: size(4)>>), do: :uint
-  def type_decode(<<0xC8, _ :: size(4)>>), do: :udint
-  def type_decode(<<0xC9, _ :: size(4)>>), do: :ulint
-  def type_decode(<<0xCA, _ :: size(4)>>), do: :real
-  def type_decode(<<0xCB, _ :: size(4)>>), do: :lreal
-  def type_decode(<<0xCC, _ :: size(4)>>), do: :stime
-  def type_decode(<<0xCD, _ :: size(4)>>), do: :date
-  def type_decode(<<0xCE, _ :: size(4)>>), do: :time_of_day
-  def type_decode(<<0xCF, _ :: size(4)>>), do: :date_and_time
-  def type_decode(<<0xD0, _ :: size(4)>>), do: :string
-  def type_decode(<<0xD1, _ :: size(4)>>), do: :byte
-  def type_decode(<<0xD2, _ :: size(4)>>), do: :word
-  def type_decode(<<0xD3, _ :: size(4)>>), do: :dword
-  def type_decode(<<0xD4, _ :: size(4)>>), do: :lword
-  def type_decode(<<0xD5, _ :: size(4)>>), do: :string2
-  def type_decode(<<0xD6, _ :: size(4)>>), do: :ftime
-  def type_decode(<<0xD7, _ :: size(4)>>), do: :ltime
-  def type_decode(<<0xD8, _ :: size(4)>>), do: :itime
-  def type_decode(<<0xD9, _ :: size(4)>>), do: :stringn
-  def type_decode(<<0xDA, _ :: size(4)>>), do: :short_string
-  def type_decode(<<0xDB, _ :: size(4)>>), do: :time
-  def type_decode(<<0xDC, _ :: size(4)>>), do: :epath
-  def type_decode(<<0xDD, _ :: size(4)>>), do: :engunit
-  def type_decode(<<0xDE, _ :: size(4)>>), do: :stringi
+  def type_decode(<<0xC1, _>>), do: :bool
+  def type_decode(<<0xC3, _>>), do: :int
+  def type_decode(<<0xC2, _>>), do: :sint
+  def type_decode(<<0xC4, _>>), do: :dint
+  def type_decode(<<0xC5, _>>), do: :lint
+  def type_decode(<<0xC6, _>>), do: :usint
+  def type_decode(<<0xC7, _>>), do: :uint
+  def type_decode(<<0xC8, _>>), do: :udint
+  def type_decode(<<0xC9, _>>), do: :ulint
+  def type_decode(<<0xCA, _>>), do: :real
+  def type_decode(<<0xCB, _>>), do: :lreal
+  def type_decode(<<0xCC, _>>), do: :stime
+  def type_decode(<<0xCD, _>>), do: :date
+  def type_decode(<<0xCE, _>>), do: :time_of_day
+  def type_decode(<<0xCF, _>>), do: :date_and_time
+  def type_decode(<<0xD0, _>>), do: :string
+  def type_decode(<<0xD1, _>>), do: :byte
+  def type_decode(<<0xD2, _>>), do: :word
+  def type_decode(<<0xD3, _>>), do: :dword
+  def type_decode(<<0xD4, _>>), do: :lword
+  def type_decode(<<0xD5, _>>), do: :string2
+  def type_decode(<<0xD6, _>>), do: :ftime
+  def type_decode(<<0xD7, _>>), do: :ltime
+  def type_decode(<<0xD8, _>>), do: :itime
+  def type_decode(<<0xD9, _>>), do: :stringn
+  def type_decode(<<0xDA, _>>), do: :short_string
+  def type_decode(<<0xDB, _>>), do: :time
+  def type_decode(<<0xDC, _>>), do: :epath
+  def type_decode(<<0xDD, _>>), do: :engunit
+  def type_decode(<<0xDE, _>>), do: :stringi
 
   def type_decode(bits), do: {:unknown, bits}
 end

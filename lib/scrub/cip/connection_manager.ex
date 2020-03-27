@@ -142,7 +142,7 @@ defmodule Scrub.CIP.ConnectionManager do
   defp decode_service(:unconnected_send, %{size: _size}, <<
          data::binary
        >>, template) do
-    IO.inspect data, base: :hex
+    Scrub.inspect(data)
     {:ok, Type.decode(data, template)}
   end
 
@@ -170,7 +170,7 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   defp transport_class_trigger(opts \\ []) do
-    dir = opts[:dir] || :server
+    dir = opts[:dir] || :client
     trigger = opts[:trigger] || :application_object
     transport_class = opts[:transport_class] || 3
 
