@@ -92,7 +92,7 @@ defmodule Scrub.CIP.Template do
           member_info
           |> Enum.reverse()
           |> :binary.list_to_bin()
-
+          |> IO.inspect(base: :hex)
         member_info = decode_member_info(member_info, [])
         [_magic | member_names] = String.split(member_names, <<0x00>>)
 

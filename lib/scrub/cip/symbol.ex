@@ -86,12 +86,18 @@ defmodule Scrub.CIP.Symbol do
 
   def filter(tags) when is_list(tags) do
     tags
-    |> Enum.reject(& &1.structure == :atomic && is_tuple(&1.type) && elem(&1.type, 0) == :unknown)
-    # |> Enum.reject(& &1.structure == :structured && &1.type not in 0x100..0xEFF)
-    |> Enum.reject(& &1.structure == :system)
-    |> Enum.reject(& String.starts_with?(&1.name, "__"))
     |> Enum.reject(& String.contains?(&1.name, ":"))
+    |> Enum.reject(& filter_structure/1)
   end
+
+  def filter_structure(%{structure: :atomic, type: {:unknown, _}}), do: true
+  def filter_structure(%{structure: :system}), do: true
+  def filter_structure(%{name: <<"__", _tail :: binary>>}), do: true
+  def filter_structure(%{structure: :structured, template_instance: instance}) do
+    <<instance :: uint>> = instance
+    instance not in 0x100..0xEFF
+  end
+  def filter_structure(_), do: false
 
   def type_decode(<<0xC1, pos :: size(4)>>), do: {:bool, pos}
   def type_decode(<<0xC2, _ :: size(4)>>), do: :sint

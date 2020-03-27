@@ -100,7 +100,7 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   # Large Forward Open
-  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>) do
+  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>, template \\ nil) do
     <<service>> = <<0::size(1), service::size(7)>>
 
     header = %{
@@ -113,7 +113,7 @@ defmodule Scrub.CIP.ConnectionManager do
         {:error, {:not_implemented, data}}
 
       {service, _} ->
-        decode_service(service, header, data)
+        decode_service(service, header, data, template)
     end
   end
 
@@ -127,7 +127,7 @@ defmodule Scrub.CIP.ConnectionManager do
          target_api::udint,
          0::usint,
          _reserved::binary
-       >>) do
+       >>, _t) do
     payload = %{
       orig_network_id: orig_network_id,
       target_network_id: target_network_id,
@@ -141,8 +141,9 @@ defmodule Scrub.CIP.ConnectionManager do
 
   defp decode_service(:unconnected_send, %{size: _size}, <<
          data::binary
-       >>) do
-    {:ok, Type.decode(data)}
+       >>, template) do
+    IO.inspect data, base: :hex
+    {:ok, Type.decode(data, template)}
   end
 
   defp large_forward_open_network_parameters(opts \\ []) do
