@@ -78,6 +78,7 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_service(:read_template_service, %{status: _status}, data) do
+    Scrub.inspect(data)
     case String.split(data, <<0x3B>>, parts: 2) do
       [member_info, member_names] ->
 
@@ -92,7 +93,6 @@ defmodule Scrub.CIP.Template do
           member_info
           |> Enum.reverse()
           |> :binary.list_to_bin()
-          |> Scrub.inspect()
 
         member_info = decode_member_info(member_info, [])
         [_magic | member_names] = String.split(member_names, <<0x00>>)
@@ -142,7 +142,6 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_member_info(<<array_length :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
-    Scrub.inspect type
     type = Symbol.type_decode(type)
     member = %{type: type, offset: offset}
 

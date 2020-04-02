@@ -35,6 +35,14 @@ defmodule Scrub do
       ConnectionManager.decode(resp, Map.merge(template_attributes, template))
     end
   end
+  def read_tag({session, conn}, %{array_dims: dims, array_length: [h | t]} = tag) when dims > 0 do
+    elements = Enum.reduce(t, h, & &1 * &2)
+    with data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name, read_elements: elements),
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+
+      ConnectionManager.decode(resp, tag)
+    end
+  end
   def read_tag({session, conn}, %{} = tag) do
     with data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
