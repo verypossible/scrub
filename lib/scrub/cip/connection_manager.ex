@@ -100,7 +100,7 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   # Large Forward Open
-  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>, template \\ nil) do
+  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>, template_or_tag \\ nil) do
     <<service>> = <<0::size(1), service::size(7)>>
 
     header = %{
@@ -113,7 +113,7 @@ defmodule Scrub.CIP.ConnectionManager do
         {:error, {:not_implemented, data}}
 
       {service, _} ->
-        decode_service(service, header, data, template)
+        decode_service(service, header, data, template_or_tag)
     end
   end
 

@@ -17,7 +17,7 @@ defmodule Scrub.CIP.Symbol do
     >>
 
     request_data = <<
-      0x02, 0x00, 0x01, 0x00, 0x02, 0x00
+      0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x08, 0x00
     >>
 
     <<
@@ -54,8 +54,9 @@ defmodule Scrub.CIP.Symbol do
     {:ok, payload}
   end
 
-  defp decode_tags(<<instance_id :: udint, name_len :: uint, name :: binary(name_len, 8), type :: binary(2, 8), tail :: binary>>, tags) do
-    tag = Map.merge(%{name: name, instance_id: instance_id}, type(type))
+  defp decode_tags(<<instance_id :: udint, name_len :: uint, name :: binary(name_len, 8), type :: binary(2, 8), array_d1 :: udint, array_d2 :: udint, array_d3 :: udint, tail :: binary>>, tags) do
+    array_length = Enum.reject([array_d1, array_d2, array_d3], & &1 == 0)
+    tag = Map.merge(%{name: name, instance_id: instance_id, array_length: array_length}, type(type))
     decode_tags(tail, [tag | tags])
   end
 
@@ -99,36 +100,42 @@ defmodule Scrub.CIP.Symbol do
   end
   def filter_structure(_), do: false
 
-  def type_decode(<<0xC1, _>>), do: :bool
-  def type_decode(<<0xC3, _>>), do: :int
-  def type_decode(<<0xC2, _>>), do: :sint
-  def type_decode(<<0xC4, _>>), do: :dint
-  def type_decode(<<0xC5, _>>), do: :lint
-  def type_decode(<<0xC6, _>>), do: :usint
-  def type_decode(<<0xC7, _>>), do: :uint
-  def type_decode(<<0xC8, _>>), do: :udint
-  def type_decode(<<0xC9, _>>), do: :ulint
-  def type_decode(<<0xCA, _>>), do: :real
-  def type_decode(<<0xCB, _>>), do: :lreal
-  def type_decode(<<0xCC, _>>), do: :stime
-  def type_decode(<<0xCD, _>>), do: :date
-  def type_decode(<<0xCE, _>>), do: :time_of_day
-  def type_decode(<<0xCF, _>>), do: :date_and_time
-  def type_decode(<<0xD0, _>>), do: :string
-  def type_decode(<<0xD1, _>>), do: :byte
-  def type_decode(<<0xD2, _>>), do: :word
-  def type_decode(<<0xD3, _>>), do: :dword
-  def type_decode(<<0xD4, _>>), do: :lword
-  def type_decode(<<0xD5, _>>), do: :string2
-  def type_decode(<<0xD6, _>>), do: :ftime
-  def type_decode(<<0xD7, _>>), do: :ltime
-  def type_decode(<<0xD8, _>>), do: :itime
-  def type_decode(<<0xD9, _>>), do: :stringn
-  def type_decode(<<0xDA, _>>), do: :short_string
-  def type_decode(<<0xDB, _>>), do: :time
-  def type_decode(<<0xDC, _>>), do: :epath
-  def type_decode(<<0xDD, _>>), do: :engunit
-  def type_decode(<<0xDE, _>>), do: :stringi
+  # Anything that is not a _, 0x00 is assumed to be an array
+  def type_decode(<<type :: binary(1, 8), _>>) do
+    type_decode(type)
+  end
 
-  def type_decode(bits), do: {:unknown, bits}
+  def type_decode(<<0xC1>>), do: :bool
+  def type_decode(<<0xC2>>), do: :sint
+  def type_decode(<<0xC3>>), do: :int
+  def type_decode(<<0xC4>>), do: :dint
+  def type_decode(<<0xC5>>), do: :lint
+  def type_decode(<<0xC6>>), do: :usint
+  def type_decode(<<0xC7>>), do: :uint
+  def type_decode(<<0xC8>>), do: :udint
+  def type_decode(<<0xC9>>), do: :ulint
+  def type_decode(<<0xCA>>), do: :real
+  def type_decode(<<0xCB>>), do: :lreal
+  def type_decode(<<0xCC>>), do: :stime
+  def type_decode(<<0xCD>>), do: :date
+  def type_decode(<<0xCE>>), do: :string # This is a guess for strings from AB
+  # def type_decode(<<0xCE>>), do: :time_of_day # This is from CIP
+  def type_decode(<<0xCF>>), do: :date_and_time
+  def type_decode(<<0xD0>>), do: :string
+  def type_decode(<<0xD1>>), do: :byte
+  def type_decode(<<0xD2>>), do: :word
+  def type_decode(<<0xD3>>), do: :dword
+  def type_decode(<<0xD4>>), do: :lword
+  def type_decode(<<0xD5>>), do: :string2
+  def type_decode(<<0xD6>>), do: :ftime
+  def type_decode(<<0xD7>>), do: :ltime
+  def type_decode(<<0xD8>>), do: :itime
+  def type_decode(<<0xD9>>), do: :stringn
+  def type_decode(<<0xDA>>), do: :short_string
+  def type_decode(<<0xDB>>), do: :time
+  def type_decode(<<0xDC>>), do: :epath
+  def type_decode(<<0xDD>>), do: :engunit
+  def type_decode(<<0xDE>>), do: :stringi
+
+  def type_decode(byte), do: {:unknown, byte}
 end
