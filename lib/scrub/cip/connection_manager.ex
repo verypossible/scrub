@@ -3,16 +3,18 @@ defmodule Scrub.CIP.ConnectionManager do
 
   alias Scrub.CIP
   alias Scrub.CIP.Type
+  alias Scrub.CIP.Connection
 
   @services [
     large_forward_open: 0x5B,
+    forward_close: 0x4E,
     unconnected_send: 0x4C
   ]
 
   def encode_service(_, _opts \\ [])
 
   def encode_service(:large_forward_open, opts) do
-    priotity = opts[:priority] || 0
+    priority = opts[:priority] || 0
     time_ticks = opts[:time_ticks] || 10
     timeout_ticks = opts[:timeout_ticks] || 5
 
@@ -38,7 +40,7 @@ defmodule Scrub.CIP.ConnectionManager do
         # Time_ticks/ Priority
         # Reserved
         0::little-size(3),
-        priotity::little-size(1),
+        priority::little-size(1),
         time_ticks::little-size(4),
         timeout_ticks::usint,
         # Connection information
@@ -63,7 +65,40 @@ defmodule Scrub.CIP.ConnectionManager do
         target_network_conn_params::binary(4, 8),
         transport_class_trigger::binary(1),
         # Connection path to Message Router
-        0x03,
+        0x03, # size
+        0x01, # seg 1
+        0x00,
+        0x20, # seg 2
+        0x02,
+        0x24, # seg 3
+        0x01
+      >>
+  end
+
+  def encode_service(:forward_close, opts) do
+    priority = opts[:priority] || 0
+    time_ticks = opts[:time_ticks] || 10
+    timeout_ticks = opts[:timeout_ticks] || 5
+    conn_serial = opts[:conn].serial
+
+    <<0::size(1), Keyword.get(@services, :forward_close)::size(7), 0x02, 0x20, 0x06, 0x24, 0x01>> <>
+      <<
+        # Time_ticks/ Priority
+        # Reserved
+        0::little-size(3),
+        priority::little-size(1),
+        time_ticks::little-size(4),
+        timeout_ticks::usint,
+        # # Connection information
+        conn_serial::binary(2, 8),
+        # # Vendor Info
+
+        Scrub.vendor()::binary,
+        Scrub.serial_number()::binary,
+
+        # # Connection path to Message Router
+        0x03::usint,
+        0::usint, # Reserved
         0x01,
         0x00,
         0x20,
@@ -99,7 +134,6 @@ defmodule Scrub.CIP.ConnectionManager do
     >>
   end
 
-  # Large Forward Open
   def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>, template_or_tag \\ nil) do
     <<service>> = <<0::size(1), service::size(7)>>
 
@@ -117,6 +151,7 @@ defmodule Scrub.CIP.ConnectionManager do
     end
   end
 
+  # Large Forward Open
   defp decode_service(:large_forward_open, _header, <<
          orig_network_id::binary(4, 8),
          target_network_id::binary(4, 8),
@@ -128,15 +163,19 @@ defmodule Scrub.CIP.ConnectionManager do
          0::usint,
          _reserved::binary
        >>, _t) do
-    payload = %{
+
+    {:ok, %Connection{
       orig_network_id: orig_network_id,
       target_network_id: target_network_id,
-      conn_serial: conn_serial,
+      serial: conn_serial,
       orig_api: orig_api,
       target_api: target_api
-    }
+    }}
+  end
 
-    {:ok, payload}
+  defp decode_service(:forward_close, _header, data, _t) do
+
+    {:ok, data}
   end
 
   defp decode_service(:unconnected_send, %{size: _size}, <<

@@ -55,7 +55,9 @@ defmodule Scrub.Session do
       timeout: timeout,
       socket: nil,
       session_handle: nil,
-      sequence_number: 1
+      sequence_number: 1,
+      buffer: <<>>,
+      from: nil
     }
 
     {:connect, :init, s}
@@ -78,7 +80,6 @@ defmodule Scrub.Session do
   @impl true
   def disconnect(info, %{socket: socket} = s) do
     :ok = :gen_tcp.close(socket)
-
     case info do
       {:close, from} ->
         Connection.reply(from, :ok)
@@ -101,9 +102,9 @@ defmodule Scrub.Session do
   end
 
   @impl true
-  def handle_call({:send_rr_data, data}, _from, %{socket: socket} = s) do
-    reply = sync_send(socket, Protocol.send_rr_data(s.session_handle, data), s.timeout)
-    {:reply, reply, s}
+  def handle_call({:send_rr_data, data}, from, %{socket: socket} = s) do
+    sync_send(socket, Protocol.send_rr_data(s.session_handle, data), s.timeout)
+    {:noreply, %{s | from: from}}
   end
 
   @impl true
@@ -126,9 +127,28 @@ defmodule Scrub.Session do
     {:disconnect, {:close, from}, s}
   end
 
+  @impl true
+  def handle_info({:tcp, _port, data}, %{buffer: buffer} = s) do
+    data = buffer <> data
+    s =
+      case Protocol.decode(data) do
+        :partial ->
+          %{s | buffer: data}
+        resp ->
+          GenServer.reply(s.from, resp)
+          %{s | from: nil, buffer: <<>>}
+      end
+    {:noreply, s}
+  end
+
+  def handle_info({:tcp_closed, _from}, s) do
+    {:disconnect, {:error, :closed}, s}
+  end
+
   defp register_session(%{socket: socket, timeout: timeout} = s) do
     case sync_send(socket, Protocol.register(), timeout) do
       {:ok, session_handle} ->
+        :inet.setopts(socket, [{:active, true}])
         {:ok, %{s | session_handle: session_handle}}
 
       _error ->
@@ -143,15 +163,15 @@ defmodule Scrub.Session do
 
   defp sync_send(socket, data, timeout) do
     with :ok <- :gen_tcp.send(socket, data) do
-      recv(socket, <<>>, timeout)
+      read_recv(socket, <<>>, timeout)
     end
   end
 
-  defp recv(socket, buffer, timeout) do
+  defp read_recv(socket, buffer, timeout) do
     with {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
       resp = buffer <> resp
       case Protocol.decode(resp) do
-        :partial -> recv(socket, resp, timeout)
+        :partial -> read_recv(socket, resp, timeout)
         resp -> resp
       end
     end

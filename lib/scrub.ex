@@ -10,14 +10,30 @@ defmodule Scrub do
 
   require IEx
 
-  def open_conn(host) do
-    with {:ok, session} <- Scrub.Session.start_link(host),
-         data <- ConnectionManager.encode_service(:large_forward_open),
-         {:ok, resp} <- Session.send_rr_data(session, data),
-         {:ok, %{orig_network_id: conn}} <- ConnectionManager.decode(resp) do
+  def open_session!(host) do
+    {:ok, session} = Scrub.Session.start_link(host)
+    session
+  end
+
+  def open_conn(host) when is_binary(host), do: open_session!(host) |> open_conn()
+  def open_conn(session) do
+    payload = ConnectionManager.encode_service(:large_forward_open)
+    with {:ok, resp} <- Session.send_rr_data(session, payload),
+      {:ok, conn} <- ConnectionManager.decode(resp) do
 
       {session, conn}
     end
+  end
+
+  def close_conn({session, conn}) do
+    payload = ConnectionManager.encode_service(:forward_close, conn: conn)
+    with {:ok, resp} <- Session.send_rr_data(session, payload) do
+      ConnectionManager.decode(resp)
+    end
+  end
+
+  def close_session(session) do
+    Scrub.Session.close(session)
   end
 
   def read_tag({session, conn}, tag) when is_binary(tag) do

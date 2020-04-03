@@ -6,6 +6,7 @@ defmodule Scrub.Session.Protocol do
   import Scrub.BinaryUtils, warn: false
 
   alias Scrub.Session.CPF
+  alias Scrub.CIP.Connection
 
   @encapsulation_header_length 24
   @encapsulation_commands [
@@ -72,12 +73,12 @@ defmodule Scrub.Session.Protocol do
   @doc """
   2-4.8 SendUnitData
   """
-  def send_unit_data(session_handle, conn, sequence_number, payload, timeout \\ 65_535) do
+  def send_unit_data(session_handle, %Connection{orig_network_id: network_id}, sequence_number, payload, timeout \\ 65_535) do
     data = <<
       0x00::udint,
       timeout::uint,
       2::uint,
-      CPF.encode(:connected_address, conn)::binary,
+      CPF.encode(:connected_address, network_id)::binary,
       CPF.encode(:connected_data, payload, sequence_number)::binary
     >>
 
