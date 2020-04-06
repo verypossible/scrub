@@ -181,7 +181,7 @@ defmodule Scrub.CIP.ConnectionManager do
   defp decode_service(:unconnected_send, %{size: _size}, <<
          data::binary
        >>, template) do
-    Scrub.inspect(data)
+
     {:ok, Type.decode(data, template)}
   end
 

@@ -78,7 +78,6 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_service(:read_template_service, %{status: _status}, data) do
-    Scrub.inspect(data)
     case String.split(data, <<0x3B>>, parts: 2) do
       [member_info, member_names] ->
 
