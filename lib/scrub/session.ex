@@ -103,22 +103,18 @@ defmodule Scrub.Session do
 
   @impl true
   def handle_call({:send_rr_data, data}, from, %{socket: socket} = s) do
-    sync_send(socket, Protocol.send_rr_data(s.session_handle, data), s.timeout)
+    async_send(socket, Protocol.send_rr_data(s.session_handle, data))
     {:noreply, %{s | from: from}}
   end
 
   @impl true
-  def handle_call({:send_unit_data, conn, data}, _from, %{socket: socket} = s) do
+  def handle_call({:send_unit_data, conn, data}, from, %{socket: socket} = s) do
     sequence_number = s.sequence_number + 1
-
-    reply =
-      sync_send(
-        socket,
-        Protocol.send_unit_data(s.session_handle, conn, sequence_number, data),
-        s.timeout
-      )
-
-    {:reply, reply, %{s | sequence_number: sequence_number}}
+    async_send(
+      socket,
+      Protocol.send_unit_data(s.session_handle, conn, sequence_number, data)
+    )
+    {:noreply, %{s | from: from, sequence_number: sequence_number}}
   end
 
   @impl true
@@ -165,6 +161,10 @@ defmodule Scrub.Session do
     with :ok <- :gen_tcp.send(socket, data) do
       read_recv(socket, <<>>, timeout)
     end
+  end
+
+  defp async_send(socket, data) do
+    :gen_tcp.send(socket, data)
   end
 
   defp read_recv(socket, buffer, timeout) do
