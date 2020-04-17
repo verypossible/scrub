@@ -209,9 +209,26 @@ defmodule Scrub.Session do
     end
   end
 
-  defp fetch_metadata(s), do: {:ok, s}
+  defp fetch_metadata(s) do
+    IO.puts("fetch metadata not empty")
+    {:ok, s}
+  end
+  #matches that tag_metadata has a head and a tail
+  defp fetch_structure_templates(%{tag_metadata: tags} = s) do
 
-  defp fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
+    IO.puts "checking for template"
+    IO.inspect length(tags)
+    case Enum.any?(tags, fn(item) -> Map.has_key?(item, :template) end) do
+      false ->
+        IO.puts "No Data requesting templates"
+        do_fetch_structure_templates(s)
+      _ ->
+        IO.puts "templates present"
+        {:ok, s}
+    end
+
+  end
+  defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
     tags = Symbol.filter(tags)
     {structures, tags} = Enum.split_with(tags, & &1.structure == :structured)
 
@@ -231,7 +248,6 @@ defmodule Scrub.Session do
                 s <- do_send_unit_data(s, conn, data),
                 {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
                 {:ok, template} <- Template.decode(resp) do
-
                 template = Map.merge(template_attributes, template)
                 {[Map.put(structure, :template, template) | structures], s}
             else

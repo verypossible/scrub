@@ -42,7 +42,7 @@ defmodule Scrub.CIP.Type do
   def decode_type(_type, <<>>, [acc]), do: acc
   def decode_type(_type, <<>>, [_ | _] = acc), do: Enum.reverse(acc)
   def decode_type(type, data, acc) do
-    {value, tail} = decode_type_data(type, data)
+    {value, tail} = decode_type_data(type,:binary.copy(data))
     decode_type(type, tail, [value | acc])
   end
 
