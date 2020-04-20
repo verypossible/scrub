@@ -220,10 +220,8 @@ defmodule Scrub.Session do
     IO.inspect length(tags)
     case Enum.any?(tags, fn(item) -> Map.has_key?(item, :template) end) do
       false ->
-        IO.puts "No Data requesting templates"
         do_fetch_structure_templates(s)
       _ ->
-        IO.puts "templates present"
         {:ok, s}
     end
 
@@ -266,7 +264,6 @@ defmodule Scrub.Session do
     end
   end
 
-  defp fetch_structure_templates(s), do: {:ok, s}
 
   defp close_conn(s, conn) do
     with data = ConnectionManager.encode_service(:forward_close, conn: conn),
