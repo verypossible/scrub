@@ -9,7 +9,7 @@ defmodule Scrub.Session do
 
   @default_port 44818
 
-  def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 5000)
+  def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 15000)
 
   def start_link(host, port, socket_opts, timeout) when is_binary(host) do
     start_link(ip_to_tuple!(host), port, socket_opts, timeout)
