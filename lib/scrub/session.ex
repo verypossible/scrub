@@ -1,5 +1,5 @@
 defmodule Scrub.Session do
-  use Connection
+  use DBConnection
   import Scrub.Utils
 
   require Logger
@@ -11,12 +11,16 @@ defmodule Scrub.Session do
 
   def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 15000)
 
-  def start_link(host, port, socket_opts, timeout) when is_binary(host) do
-    start_link(ip_to_tuple!(host), port, socket_opts, timeout)
-  end
+  # def start_link(host, port, socket_opts, timeout) when is_binary(host) do
+  #   IO.inspect(startlink: "test")
+  #   start_link(host, port, socket_opts, timeout)
+  # end
 
-  def start_link(host, port, socket_opts, timeout) do
-    Connection.start_link(__MODULE__, {host, port, socket_opts, timeout})
+  def start_link(host, port, opts, timeout) do
+
+    opts = [hostname: host, port: port, timeout: timeout] ++ opts
+    IO.inspect(startlink: opts)
+    DBConnection.start_link(__MODULE__, opts)
   end
 
   def get_tag_metadata(session, tag) do
@@ -51,7 +55,7 @@ defmodule Scrub.Session do
   def close(session), do: Connection.call(session, :close)
 
   # Connection behaviour
-  @impl true
+
   def init({host, port, socket_opts, timeout}) do
     enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
     # :gen_tcp.connect gives priority to options at tail, rather than head.
@@ -73,8 +77,45 @@ defmodule Scrub.Session do
     {:connect, :init, s}
   end
 
+  # DBConnection behaviour
+
   @impl true
-  def connect(
+  def connect(opts) do
+    host = Keyword.fetch!(opts, :hostname) |> String.to_charlist()
+    port = Keyword.fetch!(opts, :port)
+    timeout = Keyword.get(opts, :connect_timeout, 5_000)
+
+    enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
+    socket_opts = Keyword.get(opts, :socket_options, [])
+    socket_opts = Enum.reverse(socket_opts, enforced_opts)
+    IO.inspect enforced_opts
+    IO.inspect socket_opts
+    IO.inspect host: host
+    IO.inspect port: port
+    case :gen_tcp.connect(host, port, socket_opts, timeout) do
+      {:ok, sock} ->
+        IO.inspect sock: sock
+        state = %{
+          socket: sock,
+          host: host,
+          port: port,
+          socket_opts: socket_opts,
+          timeout: timeout,
+          session_handle: nil,
+          tag_metadata: [],
+          sequence_number: 1,
+          buffer: <<>>
+        }
+        handshake(state)
+        {:ok, state}
+
+      {:error, reason} ->
+        {:error, TCPConnection.Error.exception({:connect, reason})}
+    end
+
+  end
+
+  def connect_old(
         _,
         %{socket: nil, host: host, port: port, socket_opts: socket_opts, timeout: timeout} = s
       ) do
@@ -93,6 +134,27 @@ defmodule Scrub.Session do
       {:backoff, _, _} = backoff ->
         backoff
     end
+  end
+
+  defp handshake(state) do
+    with {:ok, state} <- register_session(state),
+         {:ok, state} <- fetch_metadata(state),
+         {:ok, state} <- fetch_structure_templates(state) do
+      {:ok, state}
+    end
+  end
+
+
+  @impl true
+  def checkout(state) do
+    IO.inspect checkout: state
+    {:ok, state}
+  end
+
+  @impl true
+  def ping(state) do
+    IO.inspect ping: state
+    {:ok, state}
   end
 
   @impl true
@@ -289,6 +351,7 @@ defmodule Scrub.Session do
   end
 
   defp sync_send(socket, data, timeout) do
+    IO.inspect sync_send: socket
     with :ok <- :gen_tcp.send(socket, data) do
       read_recv(socket, <<>>, timeout)
     end
