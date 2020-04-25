@@ -37,7 +37,7 @@ defmodule Scrub do
 
   def read_tag(session, tag) when is_binary(tag) do
     with {:ok, tag} <- Session.get_tag_metadata(session, tag) do
-      IO.inspect tag
+      IO.inspect tag: tag
       read_tag(session, tag)
     end
   end

@@ -1,33 +1,90 @@
+
+
+
+# defmodule Scrub.Query do
+#   defstruct [:statement, :statement_id]
+#   defimpl DBConnection.Query do
+#     def parse(query, _opts) do
+#       query
+#     end
+
+#     def describe(query, _opts) do
+#       query
+
+
+#     end
+#     def encode(_query, params, _opts) do
+#       params
+#     end
+
+#     def decode(_query, result, _opts) do
+#       result
+#     end
+
+#   end
+
+
+# end
+
+
 defmodule Scrub.Session do
   use DBConnection
-  import Scrub.Utils
+  # import Scrub.Utils
 
   require Logger
-
+  require IEx
   alias Scrub.Session.Protocol
   alias Scrub.CIP.{ConnectionManager, Template, Symbol}
 
+  defmodule Query do
+    defstruct [:query]
+  end
   @default_port 44818
+  @default_pool_size 1
 
-  def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 15000)
+  defmodule Error do
+    defexception [:function, :reason, :message]
+
+    def exception({function, reason}) do
+      message = "#{function} error: #{format_error(reason)}"
+      %Error{function: function, reason: reason, message: message}
+    end
+
+    defp format_error(:closed), do: "closed"
+    defp format_error(:timeout), do: "timeout"
+    defp format_error(reason), do: :inet.format_error(reason)
+  end
+
+
+
+  def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 15000, pool_size \\ @default_pool_size)
 
   # def start_link(host, port, socket_opts, timeout) when is_binary(host) do
   #   IO.inspect(startlink: "test")
   #   start_link(host, port, socket_opts, timeout)
   # end
 
-  def start_link(host, port, opts, timeout) do
+  def start_link(host, port, opts, timeout, pool_size) do
 
-    opts = [hostname: host, port: port, timeout: timeout] ++ opts
+    opts = [hostname: host, port: port, timeout: timeout, pool_size: pool_size] ++ opts
     IO.inspect(startlink: opts)
     DBConnection.start_link(__MODULE__, opts)
   end
 
   def get_tag_metadata(session, tag) do
+    case DBConnection.execute(session, %Query{query: :get_tag_metadata}, tag) do
+      {:ok, _query, result} ->
+
+        {:ok,result}
+      {:error, _} = err -> err
+    end
+
+  end
+  def old_get_tag_metadata(session, tag) do
     GenServer.call(session, {:get_tag_metadata, tag})
   end
 
-  def get_tag_metadata(session) do
+  def old_get_tag_metadata(session) do
     GenServer.call(session, :get_tag_metadata)
   end
 
@@ -36,10 +93,29 @@ defmodule Scrub.Session do
 
   Used for sending unconnected messages.
   """
-  def send_rr_data(session, data) do
+  def old_send_rr_data(session, data) do
     Connection.call(session, {:send_rr_data, data})
   end
 
+  def send_rr_data(session, data) do
+
+    case DBConnection.execute(session, %Query{query: :send_rr_data}, data) do
+      {:ok, _query, result} ->
+        {:ok,result}
+      {:error, _} = err -> err
+    end
+
+  end
+
+
+  def mrag_send(conn, data) do
+
+    case DBConnection.execute(conn, %Query{query: :send_rr_data}, data) do
+      {:ok, query, state} ->
+        {:ok,state}
+      {:error, _} = err -> err
+    end
+  end
   @doc """
   2-4.8 SendUnitData
 
@@ -48,14 +124,45 @@ defmodule Scrub.Session do
   This Network Connection ID is obtained by using send_rr_data to
   establish a connection to the target's connection manager object.
   """
+
   def send_unit_data(session, conn, data) do
+    case DBConnection.execute(session, %Query{query: :send_unit_data}, {conn, data}) do
+      {:ok, _query, result} ->
+        {:ok, result}
+      {:error, _} = err -> err
+    end
+  end
+  def old_send_unit_data(session, conn, data) do
     Connection.call(session, {:send_unit_data, conn, data})
   end
 
-  def close(session), do: Connection.call(session, :close)
 
+  def old_close(session), do: Connection.call(session, :close)
+
+  def close(session) do
+    case DBConnection.close(session, %Query{query: :close}) do
+      {:ok, result} ->
+        {:ok,result}
+      {:error, _} = err -> err
+    end
+
+  end
   # Connection behaviour
 
+  @spec init({any, any, any, any}) ::
+          {:connect, :init,
+           %{
+             buffer: <<>>,
+             from: nil,
+             host: any,
+             port: any,
+             sequence_number: 1,
+             session_handle: nil,
+             socket: nil,
+             socket_opts: [any],
+             tag_metadata: [],
+             timeout: any
+           }}
   def init({host, port, socket_opts, timeout}) do
     enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
     # :gen_tcp.connect gives priority to options at tail, rather than head.
@@ -107,10 +214,10 @@ defmodule Scrub.Session do
           buffer: <<>>
         }
         handshake(state)
-        {:ok, state}
+        # {:ok, state}
 
       {:error, reason} ->
-        {:error, TCPConnection.Error.exception({:connect, reason})}
+        {:error, Scrub.Session.Error.exception({:connect, reason})}
     end
 
   end
@@ -140,25 +247,118 @@ defmodule Scrub.Session do
     with {:ok, state} <- register_session(state),
          {:ok, state} <- fetch_metadata(state),
          {:ok, state} <- fetch_structure_templates(state) do
+      :inet.setopts(state.socket, [{:active, false}])
       {:ok, state}
     end
   end
 
+  @impl true
+  def handle_begin(opts, state) do
+    IO.inspect handle_begin: opts
+    IEx.pry
+    {:ok, :ok, state}
+  end
+
+  @impl true
+  def disconnect(err, state) do
+    IO.inspect disconnect: "err: #{err}, state: #{state}"
+    IEx.pry
+    :ok
+  end
+
+  @impl true
+  def checkin(state) do
+    IEx.pry
+    {:ok, state}
+  end
 
   @impl true
   def checkout(state) do
-    IO.inspect checkout: state
+    IO.inspect checkout: ""
     {:ok, state}
   end
 
   @impl true
   def ping(state) do
-    IO.inspect ping: state
+
     {:ok, state}
+  end
+  @impl true
+  def handle_prepare(%Query{query: query}, _opts, _state) do
+    IO.inspect handle_prepare: query
+
   end
 
   @impl true
-  def disconnect(info, %{socket: socket} = s) do
+  def handle_execute(%Query{query: :send} = query, data, otherdata,  state) do
+    IO.inspect handle_execute: query
+    IO.inspect data: data
+    IO.inspect otherdata: otherdata
+    # IO.inspect state: state
+    data = "Melvin"
+    %Query{query: :send}
+    {:ok, query, data, state}
+    # case :gen_tcp.send(sock, data) do
+    #   :ok ->
+    #     # A result is always required for handle_query/3
+    #     {:ok, query, :ok, state}
+
+    #   {:error, reason} ->
+    #     {:disconnect, Scrub.Session.Error.exception({:send, reason}), state}
+    # end
+  end
+
+  @impl true
+  def handle_execute(%Query{query: :send_rr_data} = query, data, _, %{socket: socket, timeout: timeout} = state) do
+
+    case sync_send(socket, Protocol.send_rr_data(state.session_handle, data), timeout ) do
+    {:ok, data} ->
+      {:ok, query, data, state}
+    {:error, reason} ->
+      {:disconnect, Scrub.Session.Error.exception({:send_rr_data, reason}), state}
+    end
+  end
+
+  @impl true
+  def handle_execute(%Query{query: :send_unit_data} = query, {conn, data} , _, %{socket: socket, timeout: timeout, session_handle: session_handle} = state) do
+
+    sequence_number = (state.sequence_number + 1)
+    case sync_send(socket, Protocol.send_unit_data(session_handle, conn, state.sequence_number, data), timeout) do
+      {:ok, data} ->
+
+        %{state | sequence_number: sequence_number}
+        {:ok, query, data, state}
+      {:error, reason} ->
+        {:disconnect, Scrub.Session.Error.exception({:send_unit_data, reason}), state}
+      end
+
+
+  end
+
+  @impl true
+  def handle_execute(%Query{query: :get_tag_metadata} = query, tag, _, %{tag_metadata: tags} = state) do
+    reply =
+      case Enum.find(tags, & &1.name == tag) do
+        nil ->
+          {:error, :no_tag_found}
+
+        metadata ->
+          metadata
+      end
+    {:ok, query, reply, state}
+
+  end
+
+
+  @impl true
+  def handle_close(%Query{query: :close} = _query, _opts, state ) do
+    resp = unregister_session(state)
+    IO.inspect resp: resp
+    {:ok, nil, state}
+  end
+
+
+  def old_disconnect(info, %{socket: socket} = s) do
     :ok = :gen_tcp.close(socket)
     case info do
       {:close, from} ->
@@ -176,12 +376,25 @@ defmodule Scrub.Session do
     end
   end
 
+
+
+
+
+
+  # @impl true
+  # def handle_call({:send_rr_data, data}, from, s) do
+  #   do_send_rr_data(s, data)
+  #   {:noreply, %{s | from: from}}
+  # end
+
+
   @impl true
   def handle_call(_, _, %{socket: nil} = s) do
     {:reply, {:error, :closed}, s}
   end
 
-  @impl true
+
+
   def handle_call({:get_tag_metadata, tag}, _from, %{tag_metadata: tags} = s) do
     reply =
       case Enum.find(tags, & &1.name == tag) do
@@ -194,15 +407,10 @@ defmodule Scrub.Session do
     {:reply, reply, s}
   end
 
+
   @impl true
   def handle_call(:get_tag_metadata, _from, %{tag_metadata: tags} = s) do
     {:reply, {:ok, tags}, s}
-  end
-
-  @impl true
-  def handle_call({:send_rr_data, data}, from, s) do
-    do_send_rr_data(s, data)
-    {:noreply, %{s | from: from}}
   end
 
   @impl true
@@ -247,7 +455,11 @@ defmodule Scrub.Session do
     end
   end
 
-  defp unregister_session(%{socket: socket, session_handle: session}) do
+  defp unregister_session(%{socket: socket, session_handle: session, timeout: timeout}) do
+    sync_send(socket, Protocol.unregister(session), timeout)
+  end
+
+  defp old_unregister_session(%{socket: socket, session_handle: session}) do
     :gen_tcp.send(socket, Protocol.unregister(session))
   end
 
@@ -279,7 +491,7 @@ defmodule Scrub.Session do
   defp fetch_structure_templates(%{tag_metadata: tags} = s) do
 
     IO.puts "checking for template"
-    IO.inspect length(tags)
+
     case Enum.any?(tags, fn(item) -> Map.has_key?(item, :template) end) do
       false ->
         do_fetch_structure_templates(s)
@@ -375,7 +587,7 @@ defmodule Scrub.Session do
     case Symbol.decode(binary_resp) do
       {:ok, %{status: :too_much_data, tags: new_tags}} ->
         [%{instance_id: id} | _] = Enum.sort(new_tags, & &1.instance_id > &2.instance_id)
-        IO.inspect id
+        # IO.inspect id
 
         data = Symbol.encode_service(:get_instance_attribute_list, instance_id: (id + 1))
         s = do_send_unit_data(s, conn, data)
@@ -390,4 +602,41 @@ defmodule Scrub.Session do
         error
     end
   end
+
+
+defimpl DBConnection.Query, for: Scrub.Session.Query do
+  alias Scrub.Session.Query
+
+  def parse(%Query{query: tag} = query, _) when tag in [:send, :recv] do
+    IO.puts parse: "#{query}, tag #{tag}"
+    query
+  end
+
+  def describe(query, _), do: query
+
+  def encode(%Query{query: :send}, data, s) when is_binary(data) do
+    IO.inspect encode: "data:#{data}, state:#{s}"
+    data
+  end
+
+  def encode(%Query{query: tag}, data, s)  when tag in [:send_rr_data, :close,:get_tag_metadata, :send_unit_data] do
+    IO.inspect encode: "data:#{data}"
+    data
+  end
+
+
+  def encode(%Query{query: :recv}, [_bytes, _timeout] = args, _) do
+
+    args
+  end
+
+
+
+  def decode(_, result, state) do
+    # IO.inspect decode: "#{result}, #{state}"
+    result
+  end
+end
+
+
 end
