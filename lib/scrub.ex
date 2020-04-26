@@ -19,7 +19,6 @@ defmodule Scrub do
     payload = ConnectionManager.encode_service(:large_forward_open)
     with {:ok, resp} <- Session.send_rr_data(session, payload),
       {:ok, conn} <- ConnectionManager.decode(resp) do
-
       {session, conn}
     end
   end
@@ -36,9 +35,11 @@ defmodule Scrub do
   end
 
   def read_tag(session, tag) when is_binary(tag) do
-    with {:ok, tag} <- Session.get_tag_metadata(session, tag) do
-      IO.inspect tag: tag
-      read_tag(session, tag)
+    case Session.get_tag_metadata(session, tag) do
+      {:ok, tag} ->
+        read_tag(session, tag)
+      error ->
+        error
     end
   end
 

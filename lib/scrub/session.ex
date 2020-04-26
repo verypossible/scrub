@@ -57,46 +57,34 @@ defmodule Scrub.Session do
 
 
 
-  def start_link(host, port \\ @default_port, socket_opts \\ [], timeout \\ 15000, pool_size \\ @default_pool_size)
-
-  # def start_link(host, port, socket_opts, timeout) when is_binary(host) do
-  #   IO.inspect(startlink: "test")
-  #   start_link(host, port, socket_opts, timeout)
-  # end
+  def start_link(
+        host,
+        port \\ @default_port,
+        socket_opts \\ [],
+        timeout \\ 15000,
+        pool_size \\ @default_pool_size)
 
   def start_link(host, port, opts, timeout, pool_size) do
 
     opts = [hostname: host, port: port, timeout: timeout, pool_size: pool_size] ++ opts
-    IO.inspect(startlink: opts)
     DBConnection.start_link(__MODULE__, opts)
   end
 
   def get_tag_metadata(session, tag) do
     case DBConnection.execute(session, %Query{query: :get_tag_metadata}, tag) do
+      {:ok, _query, {:error, err}} ->
+        {:error, err}
       {:ok, _query, result} ->
-
         {:ok,result}
       {:error, _} = err -> err
     end
 
   end
-  def old_get_tag_metadata(session, tag) do
-    GenServer.call(session, {:get_tag_metadata, tag})
-  end
-
-  def old_get_tag_metadata(session) do
-    GenServer.call(session, :get_tag_metadata)
-  end
-
   @doc """
   2-4.7 SendRRData
 
   Used for sending unconnected messages.
   """
-  def old_send_rr_data(session, data) do
-    Connection.call(session, {:send_rr_data, data})
-  end
-
   def send_rr_data(session, data) do
 
     case DBConnection.execute(session, %Query{query: :send_rr_data}, data) do
@@ -108,14 +96,6 @@ defmodule Scrub.Session do
   end
 
 
-  def mrag_send(conn, data) do
-
-    case DBConnection.execute(conn, %Query{query: :send_rr_data}, data) do
-      {:ok, query, state} ->
-        {:ok,state}
-      {:error, _} = err -> err
-    end
-  end
   @doc """
   2-4.8 SendUnitData
 
@@ -132,10 +112,6 @@ defmodule Scrub.Session do
       {:error, _} = err -> err
     end
   end
-  def old_send_unit_data(session, conn, data) do
-    Connection.call(session, {:send_unit_data, conn, data})
-  end
-
 
   def old_close(session), do: Connection.call(session, :close)
 
@@ -147,43 +123,6 @@ defmodule Scrub.Session do
     end
 
   end
-  # Connection behaviour
-
-  @spec init({any, any, any, any}) ::
-          {:connect, :init,
-           %{
-             buffer: <<>>,
-             from: nil,
-             host: any,
-             port: any,
-             sequence_number: 1,
-             session_handle: nil,
-             socket: nil,
-             socket_opts: [any],
-             tag_metadata: [],
-             timeout: any
-           }}
-  def init({host, port, socket_opts, timeout}) do
-    enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
-    # :gen_tcp.connect gives priority to options at tail, rather than head.
-    socket_opts = Enum.reverse(socket_opts, enforced_opts)
-
-    s = %{
-      host: host,
-      port: port,
-      socket_opts: socket_opts,
-      timeout: timeout,
-      socket: nil,
-      session_handle: nil,
-      sequence_number: 1,
-      buffer: <<>>,
-      from: nil,
-      tag_metadata: []
-    }
-
-    {:connect, :init, s}
-  end
-
   # DBConnection behaviour
 
   @impl true
@@ -195,13 +134,8 @@ defmodule Scrub.Session do
     enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
     socket_opts = Keyword.get(opts, :socket_options, [])
     socket_opts = Enum.reverse(socket_opts, enforced_opts)
-    IO.inspect enforced_opts
-    IO.inspect socket_opts
-    IO.inspect host: host
-    IO.inspect port: port
     case :gen_tcp.connect(host, port, socket_opts, timeout) do
       {:ok, sock} ->
-        IO.inspect sock: sock
         state = %{
           socket: sock,
           host: host,
@@ -214,7 +148,6 @@ defmodule Scrub.Session do
           buffer: <<>>
         }
         handshake(state)
-        # {:ok, state}
 
       {:error, reason} ->
         {:error, Scrub.Session.Error.exception({:connect, reason})}
@@ -222,26 +155,6 @@ defmodule Scrub.Session do
 
   end
 
-  def connect_old(
-        _,
-        %{socket: nil, host: host, port: port, socket_opts: socket_opts, timeout: timeout} = s
-      ) do
-    with {:ok, socket} <- :gen_tcp.connect(host, port, socket_opts, timeout),
-         s <- Map.put(s, :socket, socket),
-         {:ok, s} <- register_session(s),
-         {:ok, s} <- fetch_metadata(s),
-         {:ok, s} <- fetch_structure_templates(s) do
-
-      :inet.setopts(socket, [{:active, true}])
-      {:ok, s}
-    else
-      {:error, _} ->
-        {:backoff, 1000, s}
-
-      {:backoff, _, _} = backoff ->
-        backoff
-    end
-  end
 
   defp handshake(state) do
     with {:ok, state} <- register_session(state),
@@ -289,24 +202,6 @@ defmodule Scrub.Session do
 
   end
 
-  @impl true
-  def handle_execute(%Query{query: :send} = query, data, otherdata,  state) do
-    IO.inspect handle_execute: query
-    IO.inspect data: data
-    IO.inspect otherdata: otherdata
-    # IO.inspect state: state
-    data = "Melvin"
-    %Query{query: :send}
-    {:ok, query, data, state}
-    # case :gen_tcp.send(sock, data) do
-    #   :ok ->
-    #     # A result is always required for handle_query/3
-    #     {:ok, query, :ok, state}
-
-    #   {:error, reason} ->
-    #     {:disconnect, Scrub.Session.Error.exception({:send, reason}), state}
-    # end
-  end
 
   @impl true
   def handle_execute(%Query{query: :send_rr_data} = query, data, _, %{socket: socket, timeout: timeout} = state) do
@@ -321,18 +216,14 @@ defmodule Scrub.Session do
 
   @impl true
   def handle_execute(%Query{query: :send_unit_data} = query, {conn, data} , _, %{socket: socket, timeout: timeout, session_handle: session_handle} = state) do
-
     sequence_number = (state.sequence_number + 1)
     case sync_send(socket, Protocol.send_unit_data(session_handle, conn, state.sequence_number, data), timeout) do
       {:ok, data} ->
-
         %{state | sequence_number: sequence_number}
         {:ok, query, data, state}
       {:error, reason} ->
         {:disconnect, Scrub.Session.Error.exception({:send_unit_data, reason}), state}
       end
-
-
   end
 
   @impl true
@@ -377,72 +268,6 @@ defmodule Scrub.Session do
   end
 
 
-
-
-
-
-  # @impl true
-  # def handle_call({:send_rr_data, data}, from, s) do
-  #   do_send_rr_data(s, data)
-  #   {:noreply, %{s | from: from}}
-  # end
-
-
-  @impl true
-  def handle_call(_, _, %{socket: nil} = s) do
-    {:reply, {:error, :closed}, s}
-  end
-
-
-
-  def handle_call({:get_tag_metadata, tag}, _from, %{tag_metadata: tags} = s) do
-    reply =
-      case Enum.find(tags, & &1.name == tag) do
-        nil ->
-          {:error, :no_tag_found}
-
-        metadata ->
-          {:ok, metadata}
-      end
-    {:reply, reply, s}
-  end
-
-
-  @impl true
-  def handle_call(:get_tag_metadata, _from, %{tag_metadata: tags} = s) do
-    {:reply, {:ok, tags}, s}
-  end
-
-  @impl true
-  def handle_call({:send_unit_data, conn, data}, from, s) do
-    s = do_send_unit_data(s, conn, data)
-    {:noreply, %{s | from: from}}
-  end
-
-  @impl true
-  def handle_call(:close, from, s) do
-    unregister_session(s)
-    {:disconnect, {:close, from}, s}
-  end
-
-  @impl true
-  def handle_info({:tcp, _port, data}, %{buffer: buffer} = s) do
-    data = buffer <> data
-    s =
-      case Protocol.decode(data) do
-        :partial ->
-          %{s | buffer: data}
-        resp ->
-          GenServer.reply(s.from, resp)
-          %{s | from: nil, buffer: <<>>}
-      end
-    {:noreply, s}
-  end
-
-  def handle_info({:tcp_closed, _from}, s) do
-    {:disconnect, {:error, :closed}, s}
-  end
-
   defp register_session(%{socket: socket, timeout: timeout} = s) do
     with {:ok, session_handle} <- sync_send(socket, Protocol.register(), timeout) do
 
@@ -457,10 +282,6 @@ defmodule Scrub.Session do
 
   defp unregister_session(%{socket: socket, session_handle: session, timeout: timeout}) do
     sync_send(socket, Protocol.unregister(session), timeout)
-  end
-
-  defp old_unregister_session(%{socket: socket, session_handle: session}) do
-    :gen_tcp.send(socket, Protocol.unregister(session))
   end
 
   defp fetch_metadata(%{tag_metadata: [], socket: socket} = s) do
@@ -487,11 +308,9 @@ defmodule Scrub.Session do
     IO.puts("fetch metadata not empty")
     {:ok, s}
   end
+
   #matches that tag_metadata has a head and a tail
   defp fetch_structure_templates(%{tag_metadata: tags} = s) do
-
-    IO.puts "checking for template"
-
     case Enum.any?(tags, fn(item) -> Map.has_key?(item, :template) end) do
       false ->
         do_fetch_structure_templates(s)
@@ -563,7 +382,6 @@ defmodule Scrub.Session do
   end
 
   defp sync_send(socket, data, timeout) do
-    IO.inspect sync_send: socket
     with :ok <- :gen_tcp.send(socket, data) do
       read_recv(socket, <<>>, timeout)
     end
@@ -620,7 +438,7 @@ defimpl DBConnection.Query, for: Scrub.Session.Query do
   end
 
   def encode(%Query{query: tag}, data, s)  when tag in [:send_rr_data, :close,:get_tag_metadata, :send_unit_data] do
-    IO.inspect encode: "data:#{data}"
+
     data
   end
 
