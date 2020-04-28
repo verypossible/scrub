@@ -41,6 +41,7 @@ defmodule Scrub.Session do
   end
   @default_port 44818
   @default_pool_size 1
+  @default_idle_interval 50_000
 
   defmodule Error do
     defexception [:function, :reason, :message]
@@ -62,11 +63,13 @@ defmodule Scrub.Session do
         port \\ @default_port,
         socket_opts \\ [],
         timeout \\ 15000,
-        pool_size \\ @default_pool_size)
+        pool_size \\ @default_pool_size,
+        idle_interval \\ @default_idle_interval)
 
-  def start_link(host, port, opts, timeout, pool_size) do
 
-    opts = [hostname: host, port: port, timeout: timeout, pool_size: pool_size] ++ opts
+  def start_link(host, port, opts, timeout, pool_size, idle_interval) do
+
+    opts = [hostname: host, port: port, timeout: timeout, pool_size: pool_size, idle_interval: idle_interval] ++ opts
     DBConnection.start_link(__MODULE__, opts)
   end
 
@@ -113,7 +116,6 @@ defmodule Scrub.Session do
     end
   end
 
-  def old_close(session), do: Connection.call(session, :close)
 
   def close(session) do
     case DBConnection.close(session, %Query{query: :close}) do
@@ -147,9 +149,11 @@ defmodule Scrub.Session do
           sequence_number: 1,
           buffer: <<>>
         }
+
         handshake(state)
 
       {:error, reason} ->
+        IO.inspect error: "mrag"
         {:error, Scrub.Session.Error.exception({:connect, reason})}
     end
 
@@ -161,6 +165,7 @@ defmodule Scrub.Session do
          {:ok, state} <- fetch_metadata(state),
          {:ok, state} <- fetch_structure_templates(state) do
       :inet.setopts(state.socket, [{:active, false}])
+      IO.inspect handshake: "complete"
       {:ok, state}
     end
   end
@@ -173,28 +178,35 @@ defmodule Scrub.Session do
   end
 
   @impl true
-  def disconnect(err, state) do
-    IO.inspect disconnect: "err: #{err}, state: #{state}"
-    IEx.pry
+  def disconnect(_err, %{socket: socket } = state) do
+    # IO.inspect disconnect: "err: #{err}, state: #{state}"
+    :ok = :gen_tcp.close(socket)
+    _ = flush(<<>>, state)
+
     :ok
   end
 
   @impl true
   def checkin(state) do
-    IEx.pry
     {:ok, state}
   end
 
   @impl true
   def checkout(state) do
-    IO.inspect checkout: ""
     {:ok, state}
   end
 
   @impl true
+  @spec ping(%{socket: port, timeout: any}) ::
+          {:ok, %{session_handle: any, socket: port, tag_metadata: any, timeout: any}}
+          | {:disconnect, Scrub.Session.Error.t(), %{socket: port, timeout: any}}
   def ping(state) do
-
-    {:ok, state}
+    with {:ok,state} <- handshake(state)  do
+      {:ok, state}
+    else
+      _error ->
+      {:disconnect, Scrub.Session.Error.exception({:ping, :timeout}), state}
+    end
   end
   @impl true
   def handle_prepare(%Query{query: query}, _opts, _state) do
@@ -219,7 +231,7 @@ defmodule Scrub.Session do
     sequence_number = (state.sequence_number + 1)
     case sync_send(socket, Protocol.send_unit_data(session_handle, conn, state.sequence_number, data), timeout) do
       {:ok, data} ->
-        %{state | sequence_number: sequence_number}
+        state = %{state | sequence_number: sequence_number}
         {:ok, query, data, state}
       {:error, reason} ->
         {:disconnect, Scrub.Session.Error.exception({:send_unit_data, reason}), state}
@@ -249,28 +261,8 @@ defmodule Scrub.Session do
   end
 
 
-  def old_disconnect(info, %{socket: socket} = s) do
-    :ok = :gen_tcp.close(socket)
-    case info do
-      {:close, from} ->
-        Connection.reply(from, :ok)
-        {:stop, :normal, %{s | socket: nil}}
-
-      {:error, :closed} ->
-        Logger.error("Connection closed")
-        {:connect, :reconnect, %{s | socket: nil}}
-
-      {:error, reason} ->
-        reason = :inet.format_error(reason)
-        Logger.error("Connection error: #{inspect(reason)}")
-        {:connect, :reconnect, %{s | socket: nil}}
-    end
-  end
-
-
   defp register_session(%{socket: socket, timeout: timeout} = s) do
     with {:ok, session_handle} <- sync_send(socket, Protocol.register(), timeout) do
-
         {:ok, %{s | session_handle: session_handle}}
     else
       error ->
@@ -419,6 +411,24 @@ defmodule Scrub.Session do
       error ->
         error
     end
+
+  end
+
+  defp flush(buffer, %{socket: socket} = state) do
+    receive do
+      {:tcp, ^socket, data} ->
+        {:ok, {socket, buffer <> data}}
+
+      {:tcp_closed, ^socket} ->
+        {:disconnect, Scrub.Session.Error.exception({:recv, :closed}), state}
+
+      {:tcp_error, ^socket, reason} ->
+        {:disconnect, Scrub.Session.Error.exception({:recv, reason}), state}
+    after
+      0 ->
+        # There might not be any socket messages.
+        {:ok, state}
+    end
   end
 
 
@@ -437,8 +447,7 @@ defimpl DBConnection.Query, for: Scrub.Session.Query do
     data
   end
 
-  def encode(%Query{query: tag}, data, s)  when tag in [:send_rr_data, :close,:get_tag_metadata, :send_unit_data] do
-
+  def encode(%Query{query: tag}, data, _s)  when tag in [:send_rr_data, :close,:get_tag_metadata, :send_unit_data] do
     data
   end
 
@@ -448,9 +457,7 @@ defimpl DBConnection.Query, for: Scrub.Session.Query do
     args
   end
 
-
-
-  def decode(_, result, state) do
+  def decode(_, result, _state) do
     # IO.inspect decode: "#{result}, #{state}"
     result
   end
