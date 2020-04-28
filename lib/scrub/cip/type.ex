@@ -62,7 +62,7 @@ defmodule Scrub.CIP.Type do
   def decode_type_data(:lreal, <<value::lreal, tail :: binary>>), do: {value, tail}
   def decode_type_data(:string, <<length::udint, value :: binary(length, 8), tail :: binary>>), do: {value, tail}
 
-  def decode_type_data(:dword, <<value :: binary(4, 8), tail :: binary()>>), do: {value, tail}
+  def decode_type_data(:dword, <<value :: binary(4, 8), tail :: binary()>>), do: {:binary.copy(value), tail}
   def decode_type_data(_, <<0x00::uint, tail :: binary>>), do: {nil, tail}
   def decode_type_data(_type, data), do: {data, <<>>}
 end

@@ -1,32 +1,4 @@
 
-
-
-# defmodule Scrub.Query do
-#   defstruct [:statement, :statement_id]
-#   defimpl DBConnection.Query do
-#     def parse(query, _opts) do
-#       query
-#     end
-
-#     def describe(query, _opts) do
-#       query
-
-
-#     end
-#     def encode(_query, params, _opts) do
-#       params
-#     end
-
-#     def decode(_query, result, _opts) do
-#       result
-#     end
-
-#   end
-
-
-# end
-
-
 defmodule Scrub.Session do
   use DBConnection
   # import Scrub.Utils
@@ -165,15 +137,13 @@ defmodule Scrub.Session do
          {:ok, state} <- fetch_metadata(state),
          {:ok, state} <- fetch_structure_templates(state) do
       :inet.setopts(state.socket, [{:active, false}])
-      IO.inspect handshake: "complete"
+      Logger.debug("Handshake complete")
       {:ok, state}
     end
   end
 
   @impl true
-  def handle_begin(opts, state) do
-    IO.inspect handle_begin: opts
-    IEx.pry
+  def handle_begin(_opts, state) do
     {:ok, :ok, state}
   end
 
@@ -182,7 +152,6 @@ defmodule Scrub.Session do
     # IO.inspect disconnect: "err: #{err}, state: #{state}"
     :ok = :gen_tcp.close(socket)
     _ = flush(<<>>, state)
-
     :ok
   end
 
@@ -197,9 +166,6 @@ defmodule Scrub.Session do
   end
 
   @impl true
-  @spec ping(%{socket: port, timeout: any}) ::
-          {:ok, %{session_handle: any, socket: port, tag_metadata: any, timeout: any}}
-          | {:disconnect, Scrub.Session.Error.t(), %{socket: port, timeout: any}}
   def ping(state) do
     with {:ok,state} <- handshake(state)  do
       {:ok, state}
@@ -209,9 +175,8 @@ defmodule Scrub.Session do
     end
   end
   @impl true
-  def handle_prepare(%Query{query: query}, _opts, _state) do
-    IO.inspect handle_prepare: query
-
+  def handle_prepare(query, _opts, state) do
+    {:ok, query, state}
   end
 
 
@@ -251,7 +216,33 @@ defmodule Scrub.Session do
     {:ok, query, reply, state}
 
   end
+  @impl true
+  def handle_commit(_opts,state) do
+    #currently unused but required by DBConnection
+    {:ok, :ok, state}
+  end
+  @impl true
+  def handle_deallocate(_query, _cursor, _opts, state) do
+    {:ok, :ok, state}
+  end
 
+  @impl true
+  def handle_declare(query, _params, _opts, state) do
+    {:ok, query, :ok, state}
+  end
+
+  @impl true
+  def handle_fetch(_query, _cursor, _opts, state) do
+    {:cont, :ok, state}
+  end
+  @impl true
+  def handle_rollback(_opts, state) do
+    {:ok, :ok, state}
+  end
+  @impl true
+  def handle_status(_opts, state) do
+    {:idle, state}
+  end
 
   @impl true
   def handle_close(%Query{query: :close} = _query, _opts, state ) do
@@ -266,7 +257,7 @@ defmodule Scrub.Session do
         {:ok, %{s | session_handle: session_handle}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -290,14 +281,14 @@ defmodule Scrub.Session do
         {:ok, %{s | tag_metadata: tags}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
   end
 
   defp fetch_metadata(s) do
-    IO.puts("fetch metadata not empty")
+    Logger.debug("fetch metadata not empty")
     {:ok, s}
   end
 
@@ -343,7 +334,7 @@ defmodule Scrub.Session do
         {:ok, %{s | tag_metadata: tags ++ structures}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -436,7 +427,7 @@ defimpl DBConnection.Query, for: Scrub.Session.Query do
   alias Scrub.Session.Query
 
   def parse(%Query{query: tag} = query, _) when tag in [:send, :recv] do
-    IO.puts parse: "#{query}, tag #{tag}"
+    Logger.debug("parse: #{inspect(query)}, tag #{inspect(tag)}")
     query
   end
 
@@ -451,14 +442,12 @@ defimpl DBConnection.Query, for: Scrub.Session.Query do
     data
   end
 
-
   def encode(%Query{query: :recv}, [_bytes, _timeout] = args, _) do
 
     args
   end
 
   def decode(_, result, _state) do
-    # IO.inspect decode: "#{result}, #{state}"
     result
   end
 end
