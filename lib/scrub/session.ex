@@ -83,7 +83,6 @@ defmodule Scrub.Session do
          {:ok, s} <- register_session(s),
          {:ok, s} <- fetch_metadata(s),
          {:ok, s} <- fetch_structure_templates(s) do
-
       :inet.setopts(socket, [{:active, true}])
       {:ok, s}
     else
@@ -98,6 +97,7 @@ defmodule Scrub.Session do
   @impl true
   def disconnect(info, %{socket: socket} = s) do
     :ok = :gen_tcp.close(socket)
+
     case info do
       {:close, from} ->
         Connection.reply(from, :ok)
@@ -122,13 +122,14 @@ defmodule Scrub.Session do
   @impl true
   def handle_call({:get_tag_metadata, tag}, _from, %{tag_metadata: tags} = s) do
     reply =
-      case Enum.find(tags, & &1.name == tag) do
+      case Enum.find(tags, &(&1.name == tag)) do
         nil ->
           {:error, :no_tag_found}
 
         metadata ->
           {:ok, metadata}
       end
+
     {:reply, reply, s}
   end
 
@@ -158,14 +159,17 @@ defmodule Scrub.Session do
   @impl true
   def handle_info({:tcp, _port, data}, %{buffer: buffer} = s) do
     data = buffer <> data
+
     s =
       case Protocol.decode(data) do
         :partial ->
           %{s | buffer: data}
+
         resp ->
           GenServer.reply(s.from, resp)
           %{s | from: nil, buffer: <<>>}
       end
+
     {:noreply, s}
   end
 
@@ -175,11 +179,10 @@ defmodule Scrub.Session do
 
   defp register_session(%{socket: socket, timeout: timeout} = s) do
     with {:ok, session_handle} <- sync_send(socket, Protocol.register(), timeout) do
-
-        {:ok, %{s | session_handle: session_handle}}
+      {:ok, %{s | session_handle: session_handle}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        IO.puts("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -199,71 +202,73 @@ defmodule Scrub.Session do
          {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
          {:ok, tags} <- decode_tag_list(s, conn, resp),
          :ok <- close_conn(s, conn) do
-
-        {:ok, %{s | tag_metadata: tags}}
+      {:ok, %{s | tag_metadata: tags}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        IO.puts("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
   end
 
   defp fetch_metadata(s) do
-    IO.puts("fetch metadata not empty")
+    Logger.debug("Fetch metadata not empty")
     {:ok, s}
   end
-  #matches that tag_metadata has a head and a tail
-  defp fetch_structure_templates(%{tag_metadata: tags} = s) do
 
-    IO.puts "checking for template"
-    IO.inspect length(tags)
-    case Enum.any?(tags, fn(item) -> Map.has_key?(item, :template) end) do
+  # matches that tag_metadata has a head and a tail
+  defp fetch_structure_templates(%{tag_metadata: tags} = s) do
+    case Enum.any?(tags, fn item -> Map.has_key?(item, :template) end) do
       false ->
         do_fetch_structure_templates(s)
+
       _ ->
         {:ok, s}
     end
-
   end
+
   defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
     tags = Symbol.filter(tags)
-    {structures, tags} = Enum.split_with(tags, & &1.structure == :structured)
+    {structures, tags} = Enum.split_with(tags, &(&1.structure == :structured))
 
     with data <- ConnectionManager.encode_service(:large_forward_open),
          _ <- do_send_rr_data(s, data),
          {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
          {:ok, conn} <- ConnectionManager.decode(resp) do
+      {structures, s} =
+        Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
+                                                      structure,
+                                                    {structures, s} ->
+          data = Template.encode_service(:get_attribute_list, instance_id: template_instance)
+          s = do_send_unit_data(s, conn, data)
 
-        {structures, s} =
-          Enum.reduce(structures, {structures, s}, fn(%{template_instance: template_instance} = structure, {structures, s}) ->
-            data = Template.encode_service(:get_attribute_list, instance_id: template_instance)
-            s = do_send_unit_data(s, conn, data)
+          with {:ok, resp} <- read_recv(s.socket, <<>>, s.timeout),
+               {:ok, template_attributes} <- Template.decode(resp),
+               data <-
+                 Template.encode_service(:read_template_service,
+                   instance_id: template_instance,
+                   bytes: template_attributes.definition_size * 4 - 23
+                 ),
+               s <- do_send_unit_data(s, conn, data),
+               {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
+               {:ok, template} <- Template.decode(resp) do
+            template = Map.merge(template_attributes, template)
+            {[Map.put(structure, :template, template) | structures], s}
+          else
+            _ ->
+              {structures, s}
+          end
+        end)
 
-            with {:ok, resp} <- read_recv(s.socket, <<>>, s.timeout),
-                {:ok, template_attributes} <- Template.decode(resp),
-                data <- Template.encode_service(:read_template_service, instance_id: template_instance, bytes: ((template_attributes.definition_size * 4) - 23)),
-                s <- do_send_unit_data(s, conn, data),
-                {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
-                {:ok, template} <- Template.decode(resp) do
-                template = Map.merge(template_attributes, template)
-                {[Map.put(structure, :template, template) | structures], s}
-            else
-              _ ->
-                {structures, s}
-            end
-          end)
-
-        close_conn(s, conn)
-        {:ok, %{s | tag_metadata: tags ++ structures}}
+      close_conn(s, conn)
+      {:ok, %{s | tag_metadata: tags ++ structures}}
     else
       error ->
-        IO.puts "Error: #{inspect error}"
+        IO.puts("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
   end
-
 
   defp close_conn(s, conn) do
     with data = ConnectionManager.encode_service(:forward_close, conn: conn),
@@ -280,11 +285,13 @@ defmodule Scrub.Session do
   end
 
   defp do_send_unit_data(s, conn, data) do
-    sequence_number = (s.sequence_number + 1)
+    sequence_number = s.sequence_number + 1
+
     async_send(
       s.socket,
       Protocol.send_unit_data(s.session_handle, conn, s.sequence_number, data)
     )
+
     %{s | sequence_number: sequence_number}
   end
 
@@ -301,6 +308,7 @@ defmodule Scrub.Session do
   defp read_recv(socket, buffer, timeout) do
     with {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
       resp = buffer <> resp
+
       case Protocol.decode(resp) do
         :partial -> read_recv(socket, resp, timeout)
         resp -> resp
@@ -311,17 +319,17 @@ defmodule Scrub.Session do
   defp decode_tag_list(s, conn, binary_resp, tags \\ []) do
     case Symbol.decode(binary_resp) do
       {:ok, %{status: :too_much_data, tags: new_tags}} ->
-        [%{instance_id: id} | _] = Enum.sort(new_tags, & &1.instance_id > &2.instance_id)
-        IO.inspect id
+        [%{instance_id: id} | _] = Enum.sort(new_tags, &(&1.instance_id > &2.instance_id))
+        IO.inspect(id)
 
-        data = Symbol.encode_service(:get_instance_attribute_list, instance_id: (id + 1))
+        data = Symbol.encode_service(:get_instance_attribute_list, instance_id: id + 1)
         s = do_send_unit_data(s, conn, data)
         {:ok, resp} = read_recv(s.socket, <<>>, s.timeout)
 
         decode_tag_list(s, conn, resp, new_tags ++ tags)
 
       {:ok, %{status: :success, tags: new_tags}} ->
-        {:ok, Enum.sort(new_tags ++ tags, & &1.instance_id > &2.instance_id)}
+        {:ok, Enum.sort(new_tags ++ tags, &(&1.instance_id > &2.instance_id))}
 
       error ->
         error

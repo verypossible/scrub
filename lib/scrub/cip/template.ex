@@ -10,25 +10,40 @@ defmodule Scrub.CIP.Template do
   ]
 
   def encode_service(_, _ \\ [])
+
   def encode_service(:get_attribute_list, opts) do
     instance_id = opts[:instance_id] || 0
     class = opts[:class] || 0x6C
 
     request_words = 3
+
     request_path = <<
-      0x20, class, 0x25, 0x00, instance_id :: binary
+      0x20,
+      class,
+      0x25,
+      0x00,
+      instance_id::binary
     >>
 
     request_data = <<
-      0x04, 0x00, 0x04, 0x00, 0x05, 0x00, 0x02, 0x00, 0x01, 0x00
+      0x04,
+      0x00,
+      0x04,
+      0x00,
+      0x05,
+      0x00,
+      0x02,
+      0x00,
+      0x01,
+      0x00
     >>
 
     <<
       0::size(1),
       Keyword.get(@services, :get_attribute_list)::size(7),
-      request_words :: usint,
-      request_path :: binary,
-      request_data :: binary
+      request_words::usint,
+      request_path::binary,
+      request_data::binary
     >>
   end
 
@@ -38,21 +53,26 @@ defmodule Scrub.CIP.Template do
     bytes = opts[:bytes]
 
     request_words = 3
+
     request_path = <<
-      0x20, class, 0x25, 0x00, instance_id :: binary
+      0x20,
+      class,
+      0x25,
+      0x00,
+      instance_id::binary
     >>
 
     request_data = <<
-      0x00 :: udint,
-      bytes :: uint
+      0x00::udint,
+      bytes::uint
     >>
 
     <<
       0::size(1),
       Keyword.get(@services, :read_template_service)::size(7),
-      request_words :: usint,
-      request_path :: binary,
-      request_data :: binary
+      request_words::usint,
+      request_path::binary,
+      request_data::binary
     >>
   end
 
@@ -73,14 +93,17 @@ defmodule Scrub.CIP.Template do
     end
   end
 
-  defp decode_service(:get_attribute_list, %{status: _status}, <<_count :: uint, attributes :: binary>>) do
+  defp decode_service(
+         :get_attribute_list,
+         %{status: _status},
+         <<_count::uint, attributes::binary>>
+       ) do
     {:ok, decode_attributes(attributes, [])}
   end
 
   defp decode_service(:read_template_service, %{status: _status}, data) do
     case String.split(data, <<0x3B>>, parts: 2) do
       [member_info, member_names] ->
-
         member_info_list = :binary.bin_to_list(member_info)
 
         {template_name, member_info} =
@@ -88,6 +111,7 @@ defmodule Scrub.CIP.Template do
           |> Enum.split_while(&String.printable?(<<&1>>))
 
         template_name = Enum.reverse(template_name)
+
         member_info =
           member_info
           |> Enum.reverse()
@@ -113,34 +137,36 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_attributes(<<>>, acc), do: Enum.into(acc, %{})
+
   defp decode_attributes(attributes, acc) do
     {attribute, tail} = decode_attribute(attributes)
     decode_attributes(tail, [attribute | acc])
   end
 
-  defp decode_attribute(<<0x04 :: uint, _status :: uint, definition_size :: udint, tail :: binary>>) do
+  defp decode_attribute(<<0x04::uint, _status::uint, definition_size::udint, tail::binary>>) do
     {{:definition_size, definition_size}, tail}
   end
 
-  defp decode_attribute(<<0x05 :: uint, _status :: uint, structure_size :: udint, tail :: binary>>) do
+  defp decode_attribute(<<0x05::uint, _status::uint, structure_size::udint, tail::binary>>) do
     {{:structure_size, structure_size}, tail}
   end
 
-  defp decode_attribute(<<0x02 :: uint, _status :: uint, member_count :: uint, tail :: binary>>) do
+  defp decode_attribute(<<0x02::uint, _status::uint, member_count::uint, tail::binary>>) do
     {{:member_count, member_count}, tail}
   end
 
-  defp decode_attribute(<<0x01 :: uint, _status :: uint, crc :: uint, tail :: binary>>) do
+  defp decode_attribute(<<0x01::uint, _status::uint, crc::uint, tail::binary>>) do
     {{:crc, crc}, tail}
   end
 
   defp decode_member_info(<<>>, acc), do: Enum.reverse(acc)
+
   defp decode_member_info(member_info, acc) do
     {member_info, tail} = decode_member_info(member_info)
     decode_member_info(tail, [member_info | acc])
   end
 
-  defp decode_member_info(<<array_length :: uint, type :: binary(2, 8), offset :: udint, tail :: binary>>) do
+  defp decode_member_info(<<array_length::uint, type::binary(2, 8), offset::udint, tail::binary>>) do
     type = Symbol.type_decode(type)
     member = %{type: type, offset: offset}
 
@@ -152,6 +178,7 @@ defmodule Scrub.CIP.Template do
         _type ->
           Map.put(member, :array_length, array_length)
       end
+
     {member, tail}
   end
 end

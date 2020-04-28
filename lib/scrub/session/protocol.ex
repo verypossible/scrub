@@ -73,7 +73,13 @@ defmodule Scrub.Session.Protocol do
   @doc """
   2-4.8 SendUnitData
   """
-  def send_unit_data(session_handle, %Connection{orig_network_id: network_id}, sequence_number, payload, timeout \\ 65_535) do
+  def send_unit_data(
+        session_handle,
+        %Connection{orig_network_id: network_id},
+        sequence_number,
+        payload,
+        timeout \\ 65_535
+      ) do
     data = <<
       0x00::udint,
       timeout::uint,
@@ -101,6 +107,7 @@ defmodule Scrub.Session.Protocol do
     cond do
       byte_size(data) < length ->
         :partial
+
       true ->
         decode(header, data)
     end
