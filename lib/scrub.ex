@@ -4,8 +4,6 @@ defmodule Scrub do
   def serial_number, do: "pTLC"
 
   alias Scrub.CIP.ConnectionManager
-  alias Scrub.CIP.Symbol
-  alias Scrub.CIP.Template
   alias Scrub.Session
 
   require IEx

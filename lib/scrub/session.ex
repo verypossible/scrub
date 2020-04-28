@@ -3,7 +3,6 @@ defmodule Scrub.Session do
   # import Scrub.Utils
 
   require Logger
-  require IEx
   alias Scrub.Session.Protocol
   alias Scrub.CIP.{ConnectionManager, Template, Symbol}
 
@@ -145,7 +144,6 @@ defmodule Scrub.Session do
     with {:ok, state} <- register_session(state),
          {:ok, state} <- fetch_metadata(state),
          {:ok, state} <- fetch_structure_templates(state) do
-      :inet.setopts(state.socket, [{:active, false}])
       Logger.debug("Handshake complete")
       {:ok, state}
     end
