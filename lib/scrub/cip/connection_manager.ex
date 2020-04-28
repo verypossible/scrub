@@ -65,12 +65,16 @@ defmodule Scrub.CIP.ConnectionManager do
         target_network_conn_params::binary(4, 8),
         transport_class_trigger::binary(1),
         # Connection path to Message Router
-        0x03, # size
-        0x01, # seg 1
+        # size
+        0x03,
+        # seg 1
+        0x01,
         0x00,
-        0x20, # seg 2
+        # seg 2
+        0x20,
         0x02,
-        0x24, # seg 3
+        # seg 3
+        0x24,
         0x01
       >>
   end
@@ -98,7 +102,8 @@ defmodule Scrub.CIP.ConnectionManager do
 
         # # Connection path to Message Router
         0x03::usint,
-        0::usint, # Reserved
+        # Reserved
+        0::usint,
         0x01,
         0x00,
         0x20,
@@ -120,7 +125,7 @@ defmodule Scrub.CIP.ConnectionManager do
       end
 
     request_path_padded = <<request_path::binary, 0x00::size(request_path_padding)-unit(8)>>
-    request_path = <<0x91, byte_size(request_path) :: usint, request_path_padded :: binary>>
+    request_path = <<0x91, byte_size(request_path)::usint, request_path_padded::binary>>
 
     request_words = (byte_size(request_path) / 2) |> floor
     read_elements = opts[:read_elements] || 1
@@ -130,11 +135,14 @@ defmodule Scrub.CIP.ConnectionManager do
       Keyword.get(@services, :unconnected_send)::size(7),
       request_words::usint,
       request_path::binary,
-      read_elements :: ulint
+      read_elements::ulint
     >>
   end
 
-  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>, template_or_tag \\ nil) do
+  def decode(
+        <<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>,
+        template_or_tag \\ nil
+      ) do
     <<service>> = <<0::size(1), service::size(7)>>
 
     header = %{
@@ -152,36 +160,44 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   # Large Forward Open
-  defp decode_service(:large_forward_open, _header, <<
-         orig_network_id::binary(4, 8),
-         target_network_id::binary(4, 8),
-         conn_serial::binary(2, 8),
-         _orig_vendor_id::uint,
-         _orig_serial::udint,
-         orig_api::udint,
-         target_api::udint,
-         0::usint,
-         _reserved::binary
-       >>, _t) do
-
-    {:ok, %Connection{
-      orig_network_id: orig_network_id,
-      target_network_id: target_network_id,
-      serial: conn_serial,
-      orig_api: orig_api,
-      target_api: target_api
-    }}
+  defp decode_service(
+         :large_forward_open,
+         _header,
+         <<
+           orig_network_id::binary(4, 8),
+           target_network_id::binary(4, 8),
+           conn_serial::binary(2, 8),
+           _orig_vendor_id::uint,
+           _orig_serial::udint,
+           orig_api::udint,
+           target_api::udint,
+           0::usint,
+           _reserved::binary
+         >>,
+         _t
+       ) do
+    {:ok,
+     %Connection{
+       orig_network_id: orig_network_id,
+       target_network_id: target_network_id,
+       serial: conn_serial,
+       orig_api: orig_api,
+       target_api: target_api
+     }}
   end
 
   defp decode_service(:forward_close, _header, data, _t) do
-
     {:ok, data}
   end
 
-  defp decode_service(:unconnected_send, %{size: _size}, <<
-         data::binary
-       >>, template) do
-
+  defp decode_service(
+         :unconnected_send,
+         %{size: _size},
+         <<
+           data::binary
+         >>,
+         template
+       ) do
     {:ok, Type.decode(data, template)}
   end
 

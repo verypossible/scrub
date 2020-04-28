@@ -17,14 +17,16 @@ defmodule Scrub do
   # def open_conn(host) when is_binary(host), do: open_session!(host) |> open_conn()
   def open_conn(session) do
     payload = ConnectionManager.encode_service(:large_forward_open)
+
     with {:ok, resp} <- Session.send_rr_data(session, payload),
-      {:ok, conn} <- ConnectionManager.decode(resp) do
+         {:ok, conn} <- ConnectionManager.decode(resp) do
       {session, conn}
     end
   end
 
   def close_conn({session, conn}) do
     payload = ConnectionManager.encode_service(:forward_close, conn: conn)
+
     with {:ok, resp} <- Session.send_rr_data(session, payload) do
       ConnectionManager.decode(resp)
     end
@@ -38,6 +40,7 @@ defmodule Scrub do
     case Session.get_tag_metadata(session, tag) do
       {:ok, tag} ->
         read_tag(session, tag)
+
       error ->
         error
     end
@@ -47,26 +50,30 @@ defmodule Scrub do
     with {session, conn} <- open_conn(session),
          data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
-
       close_conn({session, conn})
       ConnectionManager.decode(resp, template)
     end
   end
-  def read_tag(session, %{array_dims: dims, array_length: [h | t]} = tag) when dims > 0 do
-    elements = Enum.reduce(t, h, & &1 * &2)
-    with {session, conn} <- open_conn(session),
-         data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name, read_elements: elements),
-         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
+  def read_tag(session, %{array_dims: dims, array_length: [h | t]} = tag) when dims > 0 do
+    elements = Enum.reduce(t, h, &(&1 * &2))
+
+    with {session, conn} <- open_conn(session),
+         data <-
+           ConnectionManager.encode_service(:unconnected_send,
+             request_path: tag.name,
+             read_elements: elements
+           ),
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
       close_conn({session, conn})
       ConnectionManager.decode(resp, tag)
     end
   end
+
   def read_tag(session, %{} = tag) do
     with {session, conn} <- open_conn(session),
          data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
-
       close_conn({session, conn})
       ConnectionManager.decode(resp)
     end
