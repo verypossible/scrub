@@ -182,7 +182,7 @@ defmodule Scrub.Session do
       {:ok, %{s | session_handle: session_handle}}
     else
       error ->
-        IO.puts("Error: #{inspect(error)}")
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -205,7 +205,7 @@ defmodule Scrub.Session do
       {:ok, %{s | tag_metadata: tags}}
     else
       error ->
-        IO.puts("Error: #{inspect(error)}")
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -264,7 +264,7 @@ defmodule Scrub.Session do
       {:ok, %{s | tag_metadata: tags ++ structures}}
     else
       error ->
-        IO.puts("Error: #{inspect(error)}")
+        Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
         {:backoff, 1000, %{s | socket: nil}}
     end
@@ -320,7 +320,7 @@ defmodule Scrub.Session do
     case Symbol.decode(binary_resp) do
       {:ok, %{status: :too_much_data, tags: new_tags}} ->
         [%{instance_id: id} | _] = Enum.sort(new_tags, &(&1.instance_id > &2.instance_id))
-        IO.inspect(id)
+        Logger.debug("tag id #{inspect(id)}")
 
         data = Symbol.encode_service(:get_instance_attribute_list, instance_id: id + 1)
         s = do_send_unit_data(s, conn, data)
