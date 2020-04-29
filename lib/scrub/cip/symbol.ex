@@ -12,20 +12,32 @@ defmodule Scrub.CIP.Symbol do
     class = opts[:class] || 0x6B
 
     request_words = 3
+
     request_path = <<
-      0x20, class, 0x25, 0x00, instance_id :: uint
+      0x20,
+      class,
+      0x25,
+      0x00,
+      instance_id::uint
     >>
 
     request_data = <<
-      0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x08, 0x00
+      0x03,
+      0x00,
+      0x01,
+      0x00,
+      0x02,
+      0x00,
+      0x08,
+      0x00
     >>
 
     <<
       0::size(1),
       Keyword.get(@services, :get_instance_attribute_list)::size(7),
-      request_words :: usint,
-      request_path :: binary,
-      request_data :: binary
+      request_words::usint,
+      request_path::binary,
+      request_data::binary
     >>
   end
 
@@ -51,31 +63,44 @@ defmodule Scrub.CIP.Symbol do
       status: status,
       tags: decode_tags(data, [])
     }
+
     {:ok, payload}
   end
 
-  defp decode_tags(<<instance_id :: udint, name_len :: uint, name :: binary(name_len, 8), type :: binary(2, 8), array_d1 :: udint, array_d2 :: udint, array_d3 :: udint, tail :: binary>>, tags) do
-    array_length = Enum.reject([array_d1, array_d2, array_d3], & &1 == 0)
-    tag = Map.merge(%{name: name, instance_id: instance_id, array_length: array_length}, type(type))
+  defp decode_tags(
+         <<instance_id::udint, name_len::uint, name::binary(name_len, 8), type::binary(2, 8),
+           array_d1::udint, array_d2::udint, array_d3::udint, tail::binary>>,
+         tags
+       ) do
+    array_length = Enum.reject([array_d1, array_d2, array_d3], &(&1 == 0))
+
+    tag =
+      Map.merge(%{name: name, instance_id: instance_id, array_length: array_length}, type(type))
+
     decode_tags(tail, [tag | tags])
   end
 
   defp decode_tags(<<>>, tags), do: Enum.reverse(tags)
 
-  def type(<<type_l :: binary(8, 1), structure :: size(1), array_dims :: size(2), reserved :: size(1), type_h :: binary(4, 1)>>) do
+  def type(
+        <<type_l::binary(8, 1), structure::size(1), array_dims::size(2), reserved::size(1),
+          type_h::binary(4, 1)>>
+      ) do
     case type_structure(structure, reserved) do
       structure when structure in [:atomic, :system] ->
         %{
           structure: structure,
           array_dims: array_dims,
-          type: type_decode(<<type_l :: little - binary(8, 1), 0 :: size(4), type_h :: little - binary(4, 1)>>)
+          type:
+            type_decode(<<type_l::little-binary(8, 1), 0::size(4), type_h::little-binary(4, 1)>>)
         }
 
       :structured ->
         %{
           structure: :structured,
           array_dims: array_dims,
-          template_instance: <<type_l :: little - binary(8, 1), 0 :: size(4), type_h :: little - binary(4, 1),>>
+          template_instance:
+            <<type_l::little-binary(8, 1), 0::size(4), type_h::little-binary(4, 1)>>
         }
     end
   end
@@ -87,21 +112,23 @@ defmodule Scrub.CIP.Symbol do
 
   def filter(tags) when is_list(tags) do
     tags
-    |> Enum.reject(& String.contains?(&1.name, ":"))
-    |> Enum.reject(& filter_structure/1)
+    |> Enum.reject(&String.contains?(&1.name, ":"))
+    |> Enum.reject(&filter_structure/1)
   end
 
   def filter_structure(%{structure: :atomic, type: {:unknown, _}}), do: true
   def filter_structure(%{structure: :system}), do: true
-  def filter_structure(%{name: <<"__", _tail :: binary>>}), do: true
+  def filter_structure(%{name: <<"__", _tail::binary>>}), do: true
+
   def filter_structure(%{structure: :structured, template_instance: instance}) do
-    <<instance :: uint>> = instance
+    <<instance::uint>> = instance
     instance not in 0x100..0xEFF
   end
+
   def filter_structure(_), do: false
 
   # Anything that is not a _, 0x00 is assumed to be an array
-  def type_decode(<<type :: binary(1, 8), _>>) do
+  def type_decode(<<type::binary(1, 8), _>>) do
     type_decode(type)
   end
 
@@ -118,7 +145,8 @@ defmodule Scrub.CIP.Symbol do
   def type_decode(<<0xCB>>), do: :lreal
   def type_decode(<<0xCC>>), do: :stime
   def type_decode(<<0xCD>>), do: :date
-  def type_decode(<<0xCE>>), do: :string # This is a guess for strings from AB
+  # This is a guess for strings from AB
+  def type_decode(<<0xCE>>), do: :string
   # def type_decode(<<0xCE>>), do: :time_of_day # This is from CIP
   def type_decode(<<0xCF>>), do: :date_and_time
   def type_decode(<<0xD0>>), do: :string

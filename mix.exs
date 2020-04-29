@@ -4,7 +4,7 @@ defmodule Scrub.MixProject do
   def project do
     [
       app: :scrub,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.8",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -21,7 +21,7 @@ defmodule Scrub.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:connection, "~> 1.0"}
+      {:db_connection, "~> 2.2"}
     ]
   end
 end

@@ -12,8 +12,12 @@ for scaffolding a connection and sending unconnected messages.
 
 ### Reading a tag
 
-Reading from a tag can be summarized by calling `Scrub.read_tag/2`
+Reading from a tag can be summarized by:
+
+1. Establishing/openning a session with the PLC
+1. Requesting a tag from the PLC
 
 ```elixir
-{:ok, nil} = Scrub.read_tag("20.0.0.70", "NULL")
+iex> {:ok, session} = Scrub.open_session("20.0.0.70")
+iex> {:ok, value} = Scrub.read_tag(session,"All_EStops_OK_to_Run")
 ```
