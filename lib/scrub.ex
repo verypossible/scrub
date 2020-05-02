@@ -21,7 +21,9 @@ defmodule Scrub do
       {session, conn}
     end
   end
-
+  def check_conn_status(session) do
+    Session.status(session)
+  end
   def close_conn({session, conn}) do
     payload = ConnectionManager.encode_service(:forward_close, conn: conn)
 

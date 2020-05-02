@@ -106,6 +106,10 @@ defmodule Scrub.Session do
     end
   end
 
+  def status(session) do
+    DBConnection.status(session)
+  end
+
   # DBConnection behaviour
 
   @impl true
@@ -148,6 +152,7 @@ defmodule Scrub.Session do
       {:ok, state}
     end
   end
+
 
   @impl true
   def handle_begin(_opts, state) do
