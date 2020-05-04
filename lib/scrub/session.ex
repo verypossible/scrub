@@ -106,6 +106,10 @@ defmodule Scrub.Session do
     end
   end
 
+  def status(session) do
+    DBConnection.status(session)
+  end
+
   # DBConnection behaviour
 
   @impl true
@@ -148,6 +152,7 @@ defmodule Scrub.Session do
       {:ok, state}
     end
   end
+
 
   @impl true
   def handle_begin(_opts, state) do
@@ -278,8 +283,7 @@ defmodule Scrub.Session do
 
   @impl true
   def handle_close(%Query{query: :close} = _query, _opts, state) do
-    resp = unregister_session(state)
-    IO.inspect(resp: resp)
+    _resp = unregister_session(state)
     {:ok, nil, state}
   end
 

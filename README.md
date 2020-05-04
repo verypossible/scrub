@@ -21,3 +21,9 @@ Reading from a tag can be summarized by:
 iex> {:ok, session} = Scrub.open_session("20.0.0.70")
 iex> {:ok, value} = Scrub.read_tag(session,"All_EStops_OK_to_Run")
 ```
+
+### Running Tests
+
+```bash
+$ mix test
+```
