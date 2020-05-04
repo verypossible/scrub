@@ -21,7 +21,8 @@ defmodule Scrub.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:db_connection, "~> 2.2"}
+      {:db_connection, "~> 2.2"},
+      {:ex_doc, "~> 0.18", only: [:dev, :test], runtime: false}
     ]
   end
 end
