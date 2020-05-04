@@ -139,7 +139,6 @@ defmodule Scrub.Session do
         handshake(state)
 
       {:error, reason} ->
-        IO.inspect(error: "mrag")
         {:error, Scrub.Session.Error.exception({:connect, reason})}
     end
   end
@@ -152,7 +151,6 @@ defmodule Scrub.Session do
       {:ok, state}
     end
   end
-
 
   @impl true
   def handle_begin(_opts, state) do
