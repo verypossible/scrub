@@ -5,14 +5,15 @@ defmodule Scrub do
 
   alias Scrub.CIP.ConnectionManager
   alias Scrub.Session
-
+  alias Scrub.CIP.Symbol
   require IEx
+  require Logger
 
   def open_session(host) do
     Scrub.Session.start_link(host)
   end
 
-  # def open_conn(host) when is_binary(host), do: open_session!(host) |> open_conn()
+  def open_conn(host) when is_binary(host), do: open_session(host) |> open_conn()
   def open_conn(session) do
     payload = ConnectionManager.encode_service(:large_forward_open)
 
@@ -38,6 +39,15 @@ defmodule Scrub do
     Scrub.Session.close(session)
   end
 
+  def read_metadata(session) do
+    case Session.get_tags_metadata(session) do
+      {:ok, metadata}  ->
+        Scrub.CIP.Symbol.filter(metadata)
+      error ->
+        error
+    end
+
+  end
   def read_tag(session, tag) when is_binary(tag) do
     case Session.get_tag_metadata(session, tag) do
       {:ok, tag} ->
@@ -47,6 +57,8 @@ defmodule Scrub do
         error
     end
   end
+
+
 
   def read_tag(session, %{structure: :structured, template: template} = tag) do
     with {session, conn} <- open_conn(session),
@@ -81,23 +93,35 @@ defmodule Scrub do
     end
   end
 
+
+
   # def read_tag(host, tag) when is_binary(host) do
   #   open_conn(host)
   #   |> read_tag(tag)
   # end
 
-  # def list_tags({session, conn}) do
-  #   with data <- Symbol.encode_service(:get_instance_attribute_list),
-  #        {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+  def list_tags({session, conn}) do
 
-  #     decode_tag_list(session, conn, resp)
-  #   end
-  # end
+    with data <- Symbol.encode_service(:get_instance_attribute_list),
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
 
-  # def list_tags(host) when is_binary(host) do
-  #   open_conn(host)
-  #   |> list_tags()
-  # end
+      {:ok, tags} = decode_tag_list(session, conn, resp)
+      Enum.each(Scrub.CIP.Symbol.filter(tags), fn item ->
+        if Map.has_key?(item, :type) do
+           "name: #{IO.inspect(item.name)} type: #{IO.inspect(item.type)}"
+        else
+          "------------------"
+        end
+      end)
+
+      {:ok,tags}
+    end
+  end
+
+  def list_tags(host) when is_binary(host) do
+    open_conn(host)
+    |> list_tags()
+  end
 
   # def find_tag({session, conn}, tag) when is_binary(tag) do
   #   with {:ok, tags} <- list_tags({session, conn}),
@@ -114,23 +138,23 @@ defmodule Scrub do
   #   |> find_tag(tag)
   # end
 
-  # defp decode_tag_list(session, conn, binary_resp, tags \\ []) do
-  #   case Symbol.decode(binary_resp) do
-  #     {:ok, %{status: :too_much_data, tags: new_tags}} ->
-  #       [%{instance_id: id} | _] = Enum.sort(new_tags, & &1.instance_id > &2.instance_id)
+  defp decode_tag_list(session, conn, binary_resp, tags \\ []) do
+    case Symbol.decode(binary_resp) do
+      {:ok, %{status: :too_much_data, tags: new_tags}} ->
+        [%{instance_id: id} | _] = Enum.sort(new_tags, & &1.instance_id > &2.instance_id)
 
-  #       data = Symbol.encode_service(:get_instance_attribute_list, instance_id: (id + 1))
-  #       {:ok, resp} = Session.send_unit_data(session, conn, data)
+        data = Symbol.encode_service(:get_instance_attribute_list, instance_id: (id + 1))
+        {:ok, resp} = Session.send_unit_data(session, conn, data)
 
-  #       decode_tag_list(session, conn, resp, new_tags ++ tags)
+        decode_tag_list(session, conn, resp, new_tags ++ tags)
 
-  #     {:ok, %{status: :success, tags: new_tags}} ->
-  #       {:ok, Enum.sort(new_tags ++ tags, & &1.instance_id > &2.instance_id)}
+      {:ok, %{status: :success, tags: new_tags}} ->
+        {:ok, Enum.sort(new_tags ++ tags, & &1.instance_id > &2.instance_id)}
 
-  #     error ->
-  #       error
-  #   end
-  # end
+      error ->
+        error
+    end
+  end
 
   # def read_template_attributes({session, conn}, <<template_instance :: binary(2, 8)>>) do
   #   with data <- Template.encode_service(:get_attribute_list, instance_id: template_instance),

@@ -49,6 +49,18 @@ defmodule Scrub.Session do
     DBConnection.start_link(__MODULE__, opts)
   end
 
+  def get_tags_metadata(session) do
+    case DBConnection.execute(session, %Query{query: :get_all_tags_metadata}, <<>>) do
+      {:ok, _query, {:error, err}} ->
+        {:error, err}
+
+      {:ok, _query, result} ->
+        {:ok, result}
+
+      {:error, _} = err ->
+          err
+    end
+  end
   def get_tag_metadata(session, tag) do
     case DBConnection.execute(session, %Query{query: :get_tag_metadata}, tag) do
       {:ok, _query, {:error, err}} ->
@@ -227,6 +239,17 @@ defmodule Scrub.Session do
       {:error, reason} ->
         {:disconnect, Scrub.Session.Error.exception({:send_unit_data, reason}), state}
     end
+  end
+
+  @impl true
+  def handle_execute(
+        %Query{query: :get_all_tags_metadata} = query,
+        _data,
+        _opts,
+        %{tag_metadata: reply} = state
+      ) do
+    {:ok, query, reply, state}
+
   end
 
   @impl true
@@ -477,7 +500,7 @@ defmodule Scrub.Session do
     end
 
     def encode(%Query{query: tag}, data, _s)
-        when tag in [:send_rr_data, :close, :get_tag_metadata, :send_unit_data] do
+        when tag in [:send_rr_data, :close, :get_tag_metadata, :get_all_tags_metadata, :send_unit_data] do
       data
     end
 
