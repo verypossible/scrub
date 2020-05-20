@@ -42,7 +42,7 @@ defmodule Scrub do
   def read_metadata(session) do
     case Session.get_tags_metadata(session) do
       {:ok, metadata}  ->
-        Scrub.CIP.Symbol.filter(metadata)
+        {:ok, metadata}
       error ->
         error
     end
