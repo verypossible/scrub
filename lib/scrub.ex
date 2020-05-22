@@ -42,7 +42,8 @@ defmodule Scrub do
   def read_metadata(session) do
     case Session.get_tags_metadata(session) do
       {:ok, metadata}  ->
-        {:ok, metadata}
+
+        {:ok, filter_template_data(metadata)}
       error ->
         error
     end
@@ -93,8 +94,20 @@ defmodule Scrub do
     end
   end
 
+  def filter_template_data(tags) do
+    tags
+    |> Enum.reject(fn (item) ->
+        is_structure_type(item)
+        end )
+  end
 
+  def is_structure_type(%{structure: :atomic}) do
+    false
+  end
 
+  def is_structure_type(_x) do
+    true
+  end
   # def read_tag(host, tag) when is_binary(host) do
   #   open_conn(host)
   #   |> read_tag(tag)
