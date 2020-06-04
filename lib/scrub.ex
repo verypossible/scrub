@@ -38,6 +38,16 @@ defmodule Scrub do
     Scrub.Session.close(session)
   end
 
+  def read_metadata(session) do
+    case Session.get_tags_metadata(session) do
+      {:ok, metadata} ->
+        {:ok, filter_template_data(metadata)}
+
+      error ->
+        error
+    end
+  end
+
   def read_tag(session, tag) when is_binary(tag) do
     case Session.get_tag_metadata(session, tag) do
       {:ok, tag} ->
@@ -79,6 +89,21 @@ defmodule Scrub do
       close_conn({session, conn})
       ConnectionManager.decode(resp)
     end
+  end
+
+  def filter_template_data(tags) do
+    tags
+    |> Enum.reject(fn item ->
+      is_structure_type(item)
+    end)
+  end
+
+  def is_structure_type(%{structure: :atomic}) do
+    false
+  end
+
+  def is_structure_type(_x) do
+    true
   end
 
   # def read_tag(host, tag) when is_binary(host) do
