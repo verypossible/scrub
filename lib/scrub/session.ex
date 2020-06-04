@@ -58,9 +58,10 @@ defmodule Scrub.Session do
         {:ok, result}
 
       {:error, _} = err ->
-          err
+        err
     end
   end
+
   def get_tag_metadata(session, tag) do
     case DBConnection.execute(session, %Query{query: :get_tag_metadata}, tag) do
       {:ok, _query, {:error, err}} ->
@@ -249,7 +250,6 @@ defmodule Scrub.Session do
         %{tag_metadata: reply} = state
       ) do
     {:ok, query, reply, state}
-
   end
 
   @impl true
@@ -500,7 +500,13 @@ defmodule Scrub.Session do
     end
 
     def encode(%Query{query: tag}, data, _s)
-        when tag in [:send_rr_data, :close, :get_tag_metadata, :get_all_tags_metadata, :send_unit_data] do
+        when tag in [
+               :send_rr_data,
+               :close,
+               :get_tag_metadata,
+               :get_all_tags_metadata,
+               :send_unit_data
+             ] do
       data
     end
 
