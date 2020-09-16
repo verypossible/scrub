@@ -33,17 +33,19 @@ defmodule Scrub.Session do
         socket_opts \\ [],
         timeout \\ 15000,
         pool_size \\ @default_pool_size,
-        idle_interval \\ @default_idle_interval
+        idle_interval \\ @default_idle_interval,
+        backoff_type \\ :exp
       )
 
-  def start_link(host, port, opts, timeout, pool_size, idle_interval) do
+  def start_link(host, port, opts, timeout, pool_size, idle_interval, backoff_type) do
     opts =
       [
         hostname: host,
         port: port,
         timeout: timeout,
         pool_size: pool_size,
-        idle_interval: idle_interval
+        idle_interval: idle_interval,
+        backoff_type: backoff_type
       ] ++ opts
 
     DBConnection.start_link(__MODULE__, opts)
@@ -129,7 +131,7 @@ defmodule Scrub.Session do
   def connect(opts) do
     host = Keyword.fetch!(opts, :hostname) |> String.to_charlist()
     port = Keyword.fetch!(opts, :port)
-    timeout = Keyword.get(opts, :connect_timeout, 5_000)
+    timeout = Keyword.get(opts, :timeout, 5_000)
 
     enforced_opts = [packet: :raw, mode: :binary, active: false, keepalive: true]
     socket_opts = Keyword.get(opts, :socket_options, [])
@@ -315,7 +317,8 @@ defmodule Scrub.Session do
       error ->
         Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
-        {:backoff, 1000, %{s | socket: nil}}
+        # return error and let DBConnection backoff
+        {:error, error}
     end
   end
 
@@ -338,7 +341,8 @@ defmodule Scrub.Session do
       error ->
         Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
-        {:backoff, 1000, %{s | socket: nil}}
+        # return error and let DBConnection backoff
+        {:error, error}
     end
   end
 
@@ -397,7 +401,8 @@ defmodule Scrub.Session do
       error ->
         Logger.error("Error: #{inspect(error)}")
         :gen_tcp.close(socket)
-        {:backoff, 1000, %{s | socket: nil}}
+        # return error and let DBConnection backoff
+        {:error, error}
     end
   end
 
