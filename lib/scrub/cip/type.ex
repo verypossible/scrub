@@ -1,6 +1,6 @@
 defmodule Scrub.CIP.Type do
   import Scrub.BinaryUtils, warn: false
-  require Logger
+
   alias Scrub.CIP.Symbol
 
   def decode(<<0xA0, 0x02, _crc::uint, data::binary>>, %{members: members} = structure) do
@@ -39,8 +39,6 @@ defmodule Scrub.CIP.Type do
   end
 
   def decode(<<type::binary(2, 8), data::binary()>>, _t) do
-    Logger.debug("### Type for member is: #{inspect(Symbol.type_decode(type))}")
-
     Symbol.type_decode(type)
     |> decode_type(data)
   end
