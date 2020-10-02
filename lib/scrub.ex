@@ -48,7 +48,7 @@ defmodule Scrub do
     end
   end
 
-  #Read a nested member. Ordered list should be string split of struct.member.more...
+  # Read a nested member. Ordered list should be string split of struct.member.more...
   def read_tag(session, [tag | _rest] = nested_member) when is_binary(tag) do
     case Session.get_tag_metadata(session, tag) do
       {:ok, %{structure: :structured}} ->
