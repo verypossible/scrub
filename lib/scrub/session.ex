@@ -140,6 +140,7 @@ defmodule Scrub.Session do
     case :gen_tcp.connect(host, port, socket_opts, timeout) do
       {:ok, sock} ->
         state = %{
+          name: :kaleb,
           socket: sock,
           host: host,
           port: port,

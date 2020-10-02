@@ -114,8 +114,22 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   def encode_service(:unconnected_send, opts) do
-    request_path = opts[:request_path]
+    request_path = encode_request_path(opts[:request_path])
 
+    request_words = (byte_size(request_path) / 2) |> floor
+
+    read_elements = opts[:read_elements] || 1
+
+    <<
+      0::size(1),
+      Keyword.get(@services, :unconnected_send)::size(7),
+      request_words::usint,
+      request_path::binary,
+      read_elements::ulint
+    >>
+  end
+
+  def encode_request_path(request_path) when is_binary(request_path) do
     request_size = byte_size(request_path)
 
     request_path_padding =
@@ -127,16 +141,16 @@ defmodule Scrub.CIP.ConnectionManager do
     request_path_padded = <<request_path::binary, 0x00::size(request_path_padding)-unit(8)>>
     request_path = <<0x91, byte_size(request_path)::usint, request_path_padded::binary>>
 
-    request_words = (byte_size(request_path) / 2) |> floor
-    read_elements = opts[:read_elements] || 1
+    <<request_path::binary>>
+  end
 
-    <<
-      0::size(1),
-      Keyword.get(@services, :unconnected_send)::size(7),
-      request_words::usint,
-      request_path::binary,
-      read_elements::ulint
-    >>
+  def encode_request_path(request_path) when is_list(request_path) do
+    request_path =
+      Enum.reduce(request_path, <<>>, fn member, acc ->
+        <<acc::binary, encode_request_path(member)::binary>>
+      end)
+
+    <<request_path::binary>>
   end
 
   def decode(

@@ -48,6 +48,26 @@ defmodule Scrub do
     end
   end
 
+  #Read a nested member. Ordered list should be string split of struct.member.more...
+  def read_tag(session, [tag | _rest] = nested_member) when is_binary(tag) do
+    case Session.get_tag_metadata(session, tag) do
+      {:ok, %{structure: :structured}} ->
+        with {session, conn} <- open_conn(session),
+             data <-
+               ConnectionManager.encode_service(:unconnected_send, request_path: nested_member),
+             {:ok, resp} <- Session.send_unit_data(session, conn, data) do
+          close_conn({session, conn})
+          ConnectionManager.decode(resp)
+        end
+
+      {:ok, _} ->
+        {:error, :no_tag_found}
+
+      error ->
+        error
+    end
+  end
+
   def read_tag(session, tag) when is_binary(tag) do
     case Session.get_tag_metadata(session, tag) do
       {:ok, tag} ->
