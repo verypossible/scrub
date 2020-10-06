@@ -145,12 +145,9 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   def encode_request_path(request_path) when is_list(request_path) do
-    request_path =
-      Enum.reduce(request_path, <<>>, fn member, acc ->
-        <<acc::binary, encode_request_path(member)::binary>>
-      end)
-
-    <<request_path::binary>>
+    Enum.reduce(request_path, <<>>, fn member, acc ->
+      <<acc::binary, encode_request_path(member)::binary>>
+    end)
   end
 
   def decode(
