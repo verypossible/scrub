@@ -63,7 +63,7 @@ defmodule Scrub do
       {:ok, _} ->
         {:error, :no_tag_found}
 
-      error ->
+      {:error, _} = error ->
         error
     end
   end
