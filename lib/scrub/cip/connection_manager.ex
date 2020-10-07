@@ -139,9 +139,8 @@ defmodule Scrub.CIP.ConnectionManager do
       end
 
     request_path_padded = <<request_path::binary, 0x00::size(request_path_padding)-unit(8)>>
-    request_path = <<0x91, byte_size(request_path)::usint, request_path_padded::binary>>
 
-    <<request_path::binary>>
+    <<0x91, byte_size(request_path)::usint, request_path_padded::binary>>
   end
 
   def encode_request_path(request_path) when is_list(request_path) do
