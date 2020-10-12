@@ -53,6 +53,7 @@ defmodule Scrub.CIP.Type do
   end
 
   def decode_type_data(:bool, <<0x01, tail::binary>>), do: {true, tail}
+  def decode_type_data(:bool, <<0xFF, tail::binary>>), do: {true, tail}
   def decode_type_data(:bool, <<0x00, tail::binary>>), do: {false, tail}
   def decode_type_data(:bool, <<1::size(1), tail::binary>>), do: {true, tail}
   def decode_type_data(:bool, <<0::size(1), tail::binary>>), do: {false, tail}
