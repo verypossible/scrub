@@ -235,7 +235,7 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   defp transport_class_trigger(opts \\ []) do
-    dir = opts[:dir] || :client
+    dir = opts[:dir] || :server
     trigger = opts[:trigger] || :application_object
     transport_class = opts[:transport_class] || 3
 
