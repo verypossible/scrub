@@ -112,7 +112,6 @@ defmodule Scrub.CIP.Symbol do
 
   def filter(tags) when is_list(tags) do
     tags
-    |> Enum.reject(&String.contains?(&1.name, ":"))
     |> Enum.reject(&filter_structure/1)
   end
 

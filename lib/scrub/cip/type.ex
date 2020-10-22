@@ -43,6 +43,10 @@ defmodule Scrub.CIP.Type do
     |> decode_type(data)
   end
 
+  def decode("", _t) do
+    :invalid
+  end
+
   def decode_type(_, _, _ \\ [])
   def decode_type(_type, <<>>, [acc]), do: acc
   def decode_type(_type, <<>>, [_ | _] = acc), do: Enum.reverse(acc)
