@@ -48,10 +48,15 @@ defmodule Scrub do
     end
   end
 
-  # Read a nested member. Ordered list should be string split of struct.member.more...
+  # Read a complex member. The list is an ordered mix of options.
+  # example:  "Struct.Member[13]"  ->  ["Struct", "Member", 13]
+  # integers: considered to be array elements
+  # strings: considered to be structure members.
+  # This is outlined in the request path examples for Logix 5000 Controllers Data Access page 65
   def read_tag(session, [tag | _rest] = nested_member) when is_binary(tag) do
+    # ensure tag metadata is valid
     case Session.get_tag_metadata(session, tag) do
-      {:ok, %{structure: :structured}} ->
+      {:ok, _} ->
         with {session, conn} <- open_conn(session),
              data <-
                ConnectionManager.encode_service(:unconnected_send, request_path: nested_member),
@@ -59,9 +64,6 @@ defmodule Scrub do
           close_conn({session, conn})
           ConnectionManager.decode(resp)
         end
-
-      {:ok, _} ->
-        {:error, :no_tag_found}
 
       {:error, _} = error ->
         error

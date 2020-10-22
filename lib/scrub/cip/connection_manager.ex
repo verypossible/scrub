@@ -143,6 +143,10 @@ defmodule Scrub.CIP.ConnectionManager do
     <<0x91, byte_size(request_path)::usint, request_path_padded::binary>>
   end
 
+  def encode_request_path(request_path) when is_integer(request_path) do
+    <<0x28, request_path::size(8)>>
+  end
+
   def encode_request_path(request_path) when is_list(request_path) do
     Enum.reduce(request_path, <<>>, fn member, acc ->
       <<acc::binary, encode_request_path(member)::binary>>
@@ -208,7 +212,10 @@ defmodule Scrub.CIP.ConnectionManager do
          >>,
          template
        ) do
-    {:ok, Type.decode(data, template)}
+    case Type.decode(data, template) do
+      :invalid -> {:error, :invalid}
+      value -> {:ok, value}
+    end
   end
 
   defp large_forward_open_network_parameters(opts \\ []) do
