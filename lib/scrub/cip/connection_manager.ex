@@ -206,7 +206,7 @@ defmodule Scrub.CIP.ConnectionManager do
 
   defp decode_service(
          :unconnected_send,
-         %{size: _size},
+         %{status_code: :success},
          <<
            data::binary
          >>,
@@ -216,6 +216,15 @@ defmodule Scrub.CIP.ConnectionManager do
       :invalid -> {:error, :invalid}
       value -> {:ok, value}
     end
+  end
+
+  defp decode_service(
+         _,
+         %{status_code: code},
+         _,
+         _
+       ) do
+    {:error, code}
   end
 
   defp large_forward_open_network_parameters(opts \\ []) do
