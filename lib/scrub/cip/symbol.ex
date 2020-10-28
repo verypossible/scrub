@@ -119,11 +119,6 @@ defmodule Scrub.CIP.Symbol do
   def filter_structure(%{structure: :system}), do: true
   def filter_structure(%{name: <<"__", _tail::binary>>}), do: true
 
-  def filter_structure(%{structure: :structured, template_instance: instance}) do
-    <<instance::uint>> = instance
-    instance not in 0x100..0xEFF
-  end
-
   def filter_structure(_), do: false
 
   # Anything that is not a _, 0x00 is assumed to be an array
