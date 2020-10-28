@@ -41,7 +41,7 @@ defmodule Scrub do
   def read_metadata(session) do
     case Session.get_tags_metadata(session) do
       {:ok, metadata} ->
-        {:ok, format_tags(metadata)}
+        {:ok, metadata}
 
       error ->
         error
@@ -112,23 +112,6 @@ defmodule Scrub do
       ConnectionManager.decode(resp)
     end
   end
-
-  def format_tags(tags) do
-    tags
-    |> Enum.map(&format/1)
-    |> List.flatten
-    |> Enum.reject(&is_nil/1)
-  end
-
-
-  def format(%{name: name, structure: :structured, template: %{members: members}}) do
-    {name, :structure, Enum.flat_map(members, fn(%{name: member_name, type: type}) -> if is_atom(type) && !String.contains?(member_name, ["__", "ZZZZZZZZZZ"]), do: [{member_name, type}], else: [] end)}
-  end
-
-  def format(%{name: name, structure: :atomic, type: type, array_dims: 0}), do: {name, type, []}
-  def format(%{name: name, structure: :atomic, type: type, array_length: [len] }), do: {name, type, [len]}
-  def format(%{name: name, structure: :system}), do: {name, :system}
-  def format(_), do: nil
 
   # def read_tag(host, tag) when is_binary(host) do
   #   open_conn(host)
