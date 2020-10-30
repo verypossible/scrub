@@ -1,7 +1,6 @@
 defmodule Scrub.CIP.ConnectionManager do
   import Scrub.BinaryUtils, warn: false
 
-  require Logger
   alias Scrub.CIP
   alias Scrub.CIP.Type
   alias Scrub.CIP.Connection
@@ -9,7 +8,7 @@ defmodule Scrub.CIP.ConnectionManager do
   @services [
     large_forward_open: 0x5B,
     forward_close: 0x4E,
-    unconnected_send: 0x4C,
+    read_tag_service: 0x4C,
     multiple_service_request: 0x0A
   ]
 
@@ -124,7 +123,7 @@ defmodule Scrub.CIP.ConnectionManager do
         opts[:tag_list],
         {1, offset_start, <<offset_start::uint>>, <<>>},
         fn request_path, {idx, offset_counter, offset_bin, service_acc} ->
-          service = encode_service(:unconnected_send, request_path: request_path)
+          service = encode_service(:read_tag_service, request_path: request_path)
           # make sure that we dont create an offset for the last service
           if idx < service_count do
             offset_counter = offset_counter + byte_size(service)
@@ -155,7 +154,7 @@ defmodule Scrub.CIP.ConnectionManager do
     >>
   end
 
-  def encode_service(:unconnected_send, opts) do
+  def encode_service(:read_tag_service, opts) do
     request_path = encode_request_path(opts[:request_path])
 
     request_words = (byte_size(request_path) / 2) |> floor
@@ -164,7 +163,7 @@ defmodule Scrub.CIP.ConnectionManager do
 
     <<
       0::size(1),
-      Keyword.get(@services, :unconnected_send)::size(7),
+      Keyword.get(@services, :read_tag_service)::size(7),
       request_words::usint,
       request_path::binary,
       read_elements::uint
@@ -247,7 +246,7 @@ defmodule Scrub.CIP.ConnectionManager do
   end
 
   defp decode_service(
-         :unconnected_send,
+         :read_tag_service,
          %{status_code: :success},
          <<
            data::binary
