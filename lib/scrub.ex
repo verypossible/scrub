@@ -74,7 +74,7 @@ defmodule Scrub do
           ConnectionManager.decode(resp)
         end
 
-      {elapsed, {:error, _}} = error ->
+      {:error, _} = error ->
         error
     end
   end
