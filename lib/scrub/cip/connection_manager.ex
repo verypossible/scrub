@@ -1,6 +1,7 @@
 defmodule Scrub.CIP.ConnectionManager do
   import Scrub.BinaryUtils, warn: false
 
+  require Logger
   alias Scrub.CIP
   alias Scrub.CIP.Type
   alias Scrub.CIP.Connection
@@ -8,7 +9,8 @@ defmodule Scrub.CIP.ConnectionManager do
   @services [
     large_forward_open: 0x5B,
     forward_close: 0x4E,
-    unconnected_send: 0x4C
+    unconnected_send: 0x4C,
+    multiple_service_request: 0x0A
   ]
 
   def encode_service(_, _opts \\ [])
@@ -113,19 +115,47 @@ defmodule Scrub.CIP.ConnectionManager do
       >>
   end
 
+  def encode_service(:multiple_service_request, opts) do
+    service_count = Enum.count(opts[:tag_list])
+    offset_start = (service_count * 2) + 2
+    {service_offsets, service_list} =
+      Enum.reduce_while(opts[:tag_list], {1, offset_start, <<offset_start::uint>>, <<>>},
+        fn(request_path, {idx, offset_counter, offset_bin, service_acc}) ->
+          service = encode_service(:unconnected_send, request_path: request_path)
+          #make sure that we dont create an offset for the last service
+          if idx < service_count do
+            offset_counter = offset_counter + byte_size(service)
+            {:cont, {idx + 1, offset_counter, <<offset_bin::binary, offset_counter::uint>>, <<service_acc::binary, service::binary>>}}
+          else
+            {:halt, {offset_bin, <<service_acc::binary, service::binary>>}}
+          end
+        end)
+    <<
+      0::size(1),
+      Keyword.get(@services, :multiple_service_request)::size(7),
+      #Request Path Size
+      0x02,
+      #message router path
+      0x20, 0x02, 0x24, 0x01,
+      service_count::uint,
+      #first offset is always the same
+      service_offsets::binary,
+      service_list::binary
+    >>
+  end
+
   def encode_service(:unconnected_send, opts) do
     request_path = encode_request_path(opts[:request_path])
 
     request_words = (byte_size(request_path) / 2) |> floor
 
     read_elements = opts[:read_elements] || 1
-
     <<
       0::size(1),
       Keyword.get(@services, :unconnected_send)::size(7),
       request_words::usint,
       request_path::binary,
-      read_elements::ulint
+      read_elements::uint
     >>
   end
 
@@ -216,6 +246,45 @@ defmodule Scrub.CIP.ConnectionManager do
       :invalid -> {:error, :invalid}
       value -> {:ok, value}
     end
+  end
+
+  defp decode_service(
+         :multiple_service_request,
+         %{status_code: code},
+         <<
+          service_count::uint,
+          offset_bin::binary(service_count, 16),
+          data::binary
+         >>,
+         template
+       ) when code in [:success, :embedded_service_failure]do
+    #grab offset data
+    offset_list =
+      for <<offset::uint <- offset_bin>> do
+        offset
+      end
+
+    {start, offset_list} = List.pop_at(offset_list, 0)
+
+    {service_data, last_service, _} =
+      Enum.reduce(offset_list, {[], data, start}, fn(offset, {data_list, data, previous_offset}) ->
+        size = offset - previous_offset
+        <<important_data::binary(size, 8), rest::binary>> = data
+        {[important_data|data_list], rest, offset}
+      end)
+
+    #combine the final service into the list
+    service_data = [last_service | service_data]
+
+    final_output =
+      Enum.map(service_data, fn(s) ->
+        case decode(s) do
+          {:ok, value} -> value
+          error -> error
+        end
+      end) |>
+      Enum.reverse
+    {:ok, final_output}
   end
 
   defp decode_service(
