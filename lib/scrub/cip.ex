@@ -7,6 +7,7 @@ defmodule Scrub.CIP do
   def status_code(0x0A), do: :get_attribute_error
   def status_code(0x11), do: :too_much_data_failure
   def status_code(0x0F), do: :privilege_violation
-  def status_code(0x1E), do: :embedded_service_failure #This happens when one or more services in multiservice fails
+  # This happens when one or more services in multiservice fails
+  def status_code(0x1E), do: :embedded_service_failure
   def status_code(status), do: status
 end

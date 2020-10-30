@@ -7,7 +7,6 @@ defmodule Scrub do
   alias Scrub.Session
 
   require IEx
-  require Logger
 
   def open_session(host) do
     Scrub.Session.start_link(host)
@@ -52,10 +51,8 @@ defmodule Scrub do
   def bulk_read_tags(session, [_path | _rest] = tag_list) do
     with {session, conn} <- open_conn(session),
          data <- ConnectionManager.encode_service(:multiple_service_request, tag_list: tag_list),
-         {resp_elapsed, {:ok, resp}} <- :timer.tc(&Session.send_unit_data/3, [session, conn, data]) do
-      Logger.debug("== get data took: #{resp_elapsed} microseconds ==")
+         {:ok, resp} <- Session.send_unit_data(session, conn, data) do
       close_conn({session, conn})
-      Logger.debug(" - #{IO.inspect(Base.encode16(resp))}")
       ConnectionManager.decode(resp)
     end
   end
@@ -67,20 +64,17 @@ defmodule Scrub do
   # This is outlined in the request path examples for Logix 5000 Controllers Data Access page 65
   def read_tag(session, [tag | _rest] = nested_member) when is_binary(tag) do
     # ensure tag metadata is valid
-    case :timer.tc(&Session.get_tag_metadata/2, [session, tag]) do
-      {elapsed, {:ok, _}} ->
-        Logger.debug("== get meta for #{tag} took: #{elapsed} microseconds ==")
+    case Session.get_tag_metadata(session, tag) do
+      {:ok, _} ->
         with {session, conn} <- open_conn(session),
              data <-
                ConnectionManager.encode_service(:unconnected_send, request_path: nested_member),
-             {resp_elapsed, {:ok, resp}} <- :timer.tc(&Session.send_unit_data/3, [session, conn, data]) do
-          Logger.debug("== get data for #{tag} took: #{resp_elapsed} microseconds ==")
+             {:ok, resp} <- Session.send_unit_data(session, conn, data) do
           close_conn({session, conn})
           ConnectionManager.decode(resp)
         end
 
       {elapsed, {:error, _}} = error ->
-        Logger.debug("== get meta failed for #{tag} in: #{elapsed} microseconds ==")
         error
     end
   end
