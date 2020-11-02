@@ -267,7 +267,7 @@ defmodule Scrub.CIP.ConnectionManager do
            offset_bin::binary(service_count, 16),
            data::binary
          >>,
-         template
+         _template
        )
        when code in [:success, :embedded_service_failure] do
     # grab offset data
