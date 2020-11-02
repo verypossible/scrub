@@ -48,6 +48,8 @@ defmodule Scrub do
     end
   end
 
+  @spec bulk_read_tags(pid(), [binary() | [binary() | non_neg_integer()]]) ::
+          {:ok, [any | {:error, binary}]} | {:error, any}
   def bulk_read_tags(session, [_path | _rest] = tag_list) do
     with {session, conn} <- open_conn(session),
          data <- ConnectionManager.encode_service(:multiple_service_request, tag_list: tag_list),
@@ -62,13 +64,15 @@ defmodule Scrub do
   # integers: considered to be array elements
   # strings: considered to be structure members.
   # This is outlined in the request path examples for Logix 5000 Controllers Data Access page 65
+  @spec read_tag(pid(), [binary() | non_neg_integer()]) ::
+          {:ok, any} | {:error, any}
   def read_tag(session, [tag | _rest] = nested_member) when is_binary(tag) do
     # ensure tag metadata is valid
     case Session.get_tag_metadata(session, tag) do
       {:ok, _} ->
         with {session, conn} <- open_conn(session),
              data <-
-               ConnectionManager.encode_service(:unconnected_send, request_path: nested_member),
+               ConnectionManager.encode_service(:read_tag_service, request_path: nested_member),
              {:ok, resp} <- Session.send_unit_data(session, conn, data) do
           close_conn({session, conn})
           ConnectionManager.decode(resp)
@@ -91,7 +95,7 @@ defmodule Scrub do
 
   def read_tag(session, %{structure: :structured, template: template} = tag) do
     with {session, conn} <- open_conn(session),
-         data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
+         data <- ConnectionManager.encode_service(:read_tag_service, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
       close_conn({session, conn})
       ConnectionManager.decode(resp, template)
@@ -103,7 +107,7 @@ defmodule Scrub do
 
     with {session, conn} <- open_conn(session),
          data <-
-           ConnectionManager.encode_service(:unconnected_send,
+           ConnectionManager.encode_service(:read_tag_service,
              request_path: tag.name,
              read_elements: elements
            ),
@@ -115,7 +119,7 @@ defmodule Scrub do
 
   def read_tag(session, %{} = tag) do
     with {session, conn} <- open_conn(session),
-         data <- ConnectionManager.encode_service(:unconnected_send, request_path: tag.name),
+         data <- ConnectionManager.encode_service(:read_tag_service, request_path: tag.name),
          {:ok, resp} <- Session.send_unit_data(session, conn, data) do
       close_conn({session, conn})
       ConnectionManager.decode(resp)
