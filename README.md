@@ -22,6 +22,18 @@ iex> {:ok, session} = Scrub.open_session("20.0.0.70")
 iex> {:ok, value} = Scrub.read_tag(session,"All_EStops_OK_to_Run")
 ```
 
+Reading Structure member -  Struct.Member_name[3]
+```elixir
+iex> {:ok, session} = Scrub.open_session("20.0.0.70")
+iex> {:ok, value} = Scrub.read_tag(session,["Struct", "Member_name", 3])
+```
+
+Reading Bulk Tags -  "All_Estops_OK_to_Run" and Struct.Member_name[3]
+```elixir
+iex> {:ok, session} = Scrub.open_session("20.0.0.70")
+iex> {:ok, value} = Scrub.bulk_read_tags(session,["All_Estops_OK_to_Run", ["Struct", "Member_name", 3]])
+```
+
 ### Running Tests
 
 ```bash
