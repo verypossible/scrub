@@ -363,8 +363,7 @@ defmodule Scrub.Session do
   end
 
   # no metadata was recieved. Connection is either bad or PLC is in FAULT state
-  defp fetch_structure_templates(%{tag_metadata: []}),
-    do: {:error, :no_metadata}
+  defp fetch_structure_templates(%{tag_metadata: []}), do: {:error, :no_metadata}
 
   defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
     tags = Symbol.filter(tags)
