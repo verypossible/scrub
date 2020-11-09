@@ -352,7 +352,7 @@ defmodule Scrub.Session do
   end
 
   # matches that tag_metadata has a head and a tail
-  defp fetch_structure_templates(%{tag_metadata: tags} = s) do
+  defp fetch_structure_templates(%{tag_metadata: [_ | _] = tags} = s) do
     case Enum.any?(tags, fn item -> Map.has_key?(item, :template) end) do
       false ->
         do_fetch_structure_templates(s)
@@ -361,6 +361,10 @@ defmodule Scrub.Session do
         {:ok, s}
     end
   end
+
+  # no metadata was recieved. Connection is either bad or PLC is in FAULT state
+  defp fetch_structure_templates(%{tag_metadata: []}),
+    do: {:error, :no_metadata}
 
   defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
     tags = Symbol.filter(tags)
