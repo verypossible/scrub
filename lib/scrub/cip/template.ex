@@ -166,6 +166,13 @@ defmodule Scrub.CIP.Template do
     decode_member_info(tail, [member_info | acc])
   end
 
+  # empty array of size 0
+  defp decode_member_info(<<0, 0>>) do
+    member = %{type: :unknown, offset: 0}
+
+    {member, <<>>}
+  end
+
   defp decode_member_info(<<array_length::uint, type::binary(2, 8), offset::udint, tail::binary>>) do
     type = Symbol.type_decode(type)
     member = %{type: type, offset: offset}
