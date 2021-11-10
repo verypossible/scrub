@@ -370,7 +370,7 @@ defmodule Scrub.Session do
          {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
       bytes = template_attributes.definition_size * 4 - 23
 
-      template = read_chunks(s, conn, template_instance, bytes)
+      template = read_template_chunks(s, conn, template_instance, bytes)
       {:ok, template}
     else
       error ->
@@ -378,7 +378,7 @@ defmodule Scrub.Session do
     end
   end
 
-  defp read_chunks(s, conn, template_instance, bytes, offset \\ 0, acc \\ <<>>) do
+  defp read_template_chunks(s, conn, template_instance, bytes, offset \\ 0, acc \\ <<>>) do
     data =
       Scrub.CIP.Template.encode_service(:read_template_service,
         instance_id: template_instance,
@@ -391,9 +391,9 @@ defmodule Scrub.Session do
 
     case Scrub.CIP.Template.decode(resp, acc) do
       {:partial_data, data, data_size} ->
-        bytes = bytes - data_size
+        # bytes = bytes - data_size
         offset = offset + data_size
-        read_chunks(s, conn, template_instance, bytes, offset, data)
+        read_template_chunks(s, conn, template_instance, bytes, offset, data)
 
       {:ok, template} ->
         template
@@ -448,11 +448,11 @@ defmodule Scrub.Session do
     end
   end
 
-  def do_send_rr_data(s, data) do
+  defp do_send_rr_data(s, data) do
     async_send(s.socket, Protocol.send_rr_data(s.session_handle, data))
   end
 
-  def do_send_unit_data(s, conn, data) do
+  defp do_send_unit_data(s, conn, data) do
     sequence_number = s.sequence_number + 1
 
     async_send(
@@ -473,7 +473,7 @@ defmodule Scrub.Session do
     :gen_tcp.send(socket, data)
   end
 
-  def read_recv(socket, buffer, timeout) do
+  defp read_recv(socket, buffer, timeout) do
     with {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
       resp = buffer <> resp
 
