@@ -136,30 +136,6 @@ defmodule Scrub do
     end
   end
 
-  defp read_chunks(s, conn, template_instance, bytes, offset \\ 0, acc \\ <<>>) do
-    data =
-      Scrub.CIP.Template.encode_service(:read_template_service,
-        instance_id: template_instance,
-        bytes: bytes,
-        offset: offset
-      )
-
-    {:ok, resp} = Session.send_unit_data(s, conn, data)
-
-    case Scrub.CIP.Template.decode(resp, acc) do
-      {:partial_data, data, data_size} ->
-        bytes = bytes - data_size
-        offset = offset + data_size
-        read_chunks(s, conn, template_instance, bytes, offset, data)
-
-      {:ok, template} ->
-        template
-
-      {:error, err} ->
-        err
-    end
-  end
-
   def inspect(binary) do
     IO.inspect(binary, limit: :infinity, base: :hex)
   end
