@@ -127,17 +127,10 @@ defmodule Scrub do
   end
 
   def read_template_instance(session, template_instance) do
-    with {s, conn} <- open_conn(session),
-         data <-
-           Scrub.CIP.Template.encode_service(:get_attribute_list, instance_id: template_instance),
-         {:ok, resp} <- Session.send_unit_data(s, conn, data),
-         {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
-      bytes = template_attributes.definition_size * 4 - 23
-
-      template = read_chunks(s, conn, template_instance, bytes)
-      close_conn({s, conn})
-      IO.inspect(template_attributes)
-      template
+    with {s, conn} <- open_conn(session) do
+      Session.read_template_instance(s, conn, template_instance)
+      close_conn(s, conn)
+    end
     else
       error ->
         {:error, error}
