@@ -19,10 +19,17 @@ defmodule Scrub.CIP.Type do
         [Map.put(member, :value, value) | acc]
 
       %{type: type, offset: offset, array_length: 0} = member, acc ->
-        IO.inspect(type)
-        <<_offset::binary(offset, 8), tail::binary()>> = data
-        {value, _tail} = decode_type_data(type, tail)
-        [Map.put(member, :value, value) | acc]
+        try do
+          <<_offset::binary(offset, 8), tail::binary()>> = data
+          {value, _tail} = decode_type_data(type, tail)
+          [Map.put(member, :value, value) | acc]
+        rescue
+          _ ->
+            IO.puts("Data: #{inspect(data, limit: :infinity)}")
+            IO.puts("Type: #{inspect(type, limit: :infinity)}")
+            IO.puts("Offset: #{inspect(offset, limit: :infinity)}")
+            acc
+        end
 
       %{type: type, offset: offset, array_length: length} = member, acc ->
         <<_offset::binary(offset, 8), data::binary()>> = data

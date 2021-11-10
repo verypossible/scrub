@@ -1,6 +1,6 @@
 defmodule Scrub.CIP.Template do
   import Scrub.BinaryUtils, warn: false
-
+  require Logger
   alias Scrub.CIP
   alias Scrub.CIP.Symbol
 
@@ -51,6 +51,7 @@ defmodule Scrub.CIP.Template do
     instance_id = opts[:instance_id] || 0
     class = opts[:class] || 0x6C
     bytes = opts[:bytes]
+    offset = opts[:offset] || 0
 
     request_words = 3
 
@@ -63,7 +64,7 @@ defmodule Scrub.CIP.Template do
     >>
 
     request_data = <<
-      0x00::udint,
+      offset::udint,
       bytes::uint
     >>
 
@@ -76,7 +77,10 @@ defmodule Scrub.CIP.Template do
     >>
   end
 
-  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>) do
+  def decode(
+        <<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>,
+        additional_data \\ <<>>
+      ) do
     <<service>> = <<0::size(1), service::size(7)>>
 
     header = %{
@@ -86,10 +90,10 @@ defmodule Scrub.CIP.Template do
 
     case Enum.find(@services, &(elem(&1, 1) == service)) do
       nil ->
-        {:error, {:not_implemented, data}}
+        {:error, {:not_implemented, additional_data <> data}}
 
       {service, _} ->
-        decode_service(service, header, data)
+        decode_service(service, header, additional_data <> data)
     end
   end
 
@@ -101,7 +105,11 @@ defmodule Scrub.CIP.Template do
     {:ok, decode_attributes(attributes, [])}
   end
 
-  defp decode_service(:read_template_service, %{status: _status}, data) do
+  defp decode_service(_, %{status: :too_much_data}, data) do
+    {:partial_data, data, byte_size(data)}
+  end
+
+  defp decode_service(:read_template_service, %{status: status}, data) do
     case String.split(data, <<0x3B>>, parts: 2) do
       [member_info, member_names] ->
         member_info_list = :binary.bin_to_list(member_info)
@@ -131,7 +139,9 @@ defmodule Scrub.CIP.Template do
 
         {:ok, payload}
 
-      _ ->
+      out ->
+        Logger.debug(inspect(status))
+        Logger.debug(inspect(Base.encode16(data)))
         {:error, :broken}
     end
   end

@@ -362,6 +362,47 @@ defmodule Scrub.Session do
     end
   end
 
+  def read_template_instance(s, conn, template_instance) do
+    with data <-
+           Scrub.CIP.Template.encode_service(:get_attribute_list, instance_id: template_instance),
+         s = do_send_unit_data(s, conn, data),
+         {:ok, resp} = read_recv(s.socket, <<>>, s.timeout),
+         {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
+      bytes = template_attributes.definition_size * 4 - 23
+
+      template = read_chunks(s, conn, template_instance, bytes)
+      {:ok, template}
+    else
+      error ->
+        {:error, error}
+    end
+  end
+
+  defp read_chunks(s, conn, template_instance, bytes, offset \\ 0, acc \\ <<>>) do
+    data =
+      Scrub.CIP.Template.encode_service(:read_template_service,
+        instance_id: template_instance,
+        bytes: bytes,
+        offset: offset
+      )
+
+    s = do_send_unit_data(s, conn, data)
+    {:ok, resp} = read_recv(s.socket, <<>>, s.timeout)
+
+    case Scrub.CIP.Template.decode(resp, acc) do
+      {:partial_data, data, data_size} ->
+        bytes = bytes - data_size
+        offset = offset + data_size
+        read_chunks(s, conn, template_instance, bytes, offset, data)
+
+      {:ok, template} ->
+        template
+
+      {:error, err} ->
+        err
+    end
+  end
+
   # no metadata was recieved. Connection is either bad or PLC is in FAULT state
   defp fetch_structure_templates(%{tag_metadata: []}), do: {:error, :no_metadata}
 
@@ -377,24 +418,12 @@ defmodule Scrub.Session do
         Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
                                                       structure,
                                                     {structures, s} ->
-          data = Template.encode_service(:get_attribute_list, instance_id: template_instance)
-          s = do_send_unit_data(s, conn, data)
-
-          with {:ok, resp} <- read_recv(s.socket, <<>>, s.timeout),
-               {:ok, template_attributes} <- Template.decode(resp),
-               data <-
-                 Template.encode_service(:read_template_service,
-                   instance_id: template_instance,
-                   bytes: template_attributes.definition_size * 4 - 23
-                 ),
-               s <- do_send_unit_data(s, conn, data),
-               {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
-               {:ok, template} <- Template.decode(resp) do
-            template = Map.merge(template_attributes, template)
-            {[Map.put(structure, :template, template) | structures], s}
-          else
-            _ ->
+          case read_template_instance(s, conn, template_instance) do
+            {:error, err} ->
               {structures, s}
+
+            {:ok, template} ->
+              {[Map.put(structure, :template, template) | structures], s}
           end
         end)
 
@@ -419,11 +448,11 @@ defmodule Scrub.Session do
     end
   end
 
-  defp do_send_rr_data(s, data) do
+  def do_send_rr_data(s, data) do
     async_send(s.socket, Protocol.send_rr_data(s.session_handle, data))
   end
 
-  defp do_send_unit_data(s, conn, data) do
+  def do_send_unit_data(s, conn, data) do
     sequence_number = s.sequence_number + 1
 
     async_send(
@@ -444,7 +473,7 @@ defmodule Scrub.Session do
     :gen_tcp.send(socket, data)
   end
 
-  defp read_recv(socket, buffer, timeout) do
+  def read_recv(socket, buffer, timeout) do
     with {:ok, resp} <- :gen_tcp.recv(socket, 0, timeout) do
       resp = buffer <> resp
 
