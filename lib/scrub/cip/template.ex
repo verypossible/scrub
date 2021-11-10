@@ -1,6 +1,5 @@
 defmodule Scrub.CIP.Template do
   import Scrub.BinaryUtils, warn: false
-  require Logger
   alias Scrub.CIP
   alias Scrub.CIP.Symbol
 
@@ -139,9 +138,7 @@ defmodule Scrub.CIP.Template do
 
         {:ok, payload}
 
-      out ->
-        Logger.debug(inspect(status))
-        Logger.debug(inspect(Base.encode16(data)))
+      _ ->
         {:error, :broken}
     end
   end
