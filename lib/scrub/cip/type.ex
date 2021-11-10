@@ -4,9 +4,6 @@ defmodule Scrub.CIP.Type do
   alias Scrub.CIP.Symbol
 
   def decode(<<0xA0, 0x02, _crc::uint, data::binary>>, %{members: members} = structure) do
-    IO.puts("Template: #{structure.template_name}")
-    IO.inspect(structure)
-
     Enum.reduce(members, [], fn
       %{name: <<"ZZZZZZZZZ", _tail::binary>>}, acc ->
         acc
