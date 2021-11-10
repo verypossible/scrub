@@ -25,9 +25,6 @@ defmodule Scrub.CIP.Type do
           [Map.put(member, :value, value) | acc]
         rescue
           _ ->
-            IO.puts("Data: #{inspect(data, limit: :infinity)}")
-            IO.puts("Type: #{inspect(type, limit: :infinity)}")
-            IO.puts("Offset: #{inspect(offset, limit: :infinity)}")
             acc
         end
 
