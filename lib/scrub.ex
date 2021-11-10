@@ -130,7 +130,6 @@ defmodule Scrub do
     with {s, conn} <- open_conn(session) do
       Session.read_template_instance(s, conn, template_instance)
       close_conn(s, conn)
-    end
     else
       error ->
         {:error, error}
