@@ -391,7 +391,7 @@ defmodule Scrub.Session do
 
     case Scrub.CIP.Template.decode(resp, acc) do
       {:partial_data, data, data_size} ->
-        # bytes = bytes - data_size
+        bytes = bytes - data_size
         offset = offset + data_size
         read_template_chunks(s, conn, template_instance, bytes, offset, data)
 
