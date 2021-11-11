@@ -362,12 +362,47 @@ defmodule Scrub.Session do
     end
   end
 
-  def read_template_instance(s, conn, template_instance) do
+    # no metadata was recieved. Connection is either bad or PLC is in FAULT state
+  defp fetch_structure_templates(%{tag_metadata: []}), do: {:error, :no_metadata}
+
+  defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
+    tags = Symbol.filter(tags)
+    {structures, tags} = Enum.split_with(tags, &(&1.structure == :structured))
+
+    with data <- ConnectionManager.encode_service(:large_forward_open),
+         _ <- do_send_rr_data(s, data),
+         {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
+         {:ok, conn} <- ConnectionManager.decode(resp) do
+      {structures, s} =
+        Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
+                                                      structure,
+                                                    {structures, s} ->
+          case read_template_instance(s, conn, template_instance) do
+            {:error, _err} ->
+              {structures, s}
+
+            {:ok, template} ->
+              {[Map.put(structure, :template, template) | structures], s}
+          end
+        end)
+
+      close_conn(s, conn)
+      {:ok, %{s | tag_metadata: tags ++ structures}}
+    else
+      error ->
+        Logger.error("Error: #{inspect(error)}")
+        :gen_tcp.close(socket)
+        # return error and let DBConnection backoff
+        {:error, error}
+    end
+  end
+
+  defp read_template_instance(s, conn, template_instance) do
     with data <-
-           Scrub.CIP.Template.encode_service(:get_attribute_list, instance_id: template_instance),
+           Template.encode_service(:get_attribute_list, instance_id: template_instance),
          s = do_send_unit_data(s, conn, data),
          {:ok, resp} = read_recv(s.socket, <<>>, s.timeout),
-         {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
+         {:ok, template_attributes} <- Template.decode(resp) do
       read_template_chunks(s, conn, template_instance, template_attributes)
     else
       error ->
@@ -397,43 +432,6 @@ defmodule Scrub.Session do
         {:error, _} = err ->
           err
       end
-    else
-      reason -> {:error, reason}
-    end
-  end
-
-  # no metadata was recieved. Connection is either bad or PLC is in FAULT state
-  defp fetch_structure_templates(%{tag_metadata: []}), do: {:error, :no_metadata}
-
-  defp do_fetch_structure_templates(%{tag_metadata: [_ | _] = tags, socket: socket} = s) do
-    tags = Symbol.filter(tags)
-    {structures, tags} = Enum.split_with(tags, &(&1.structure == :structured))
-
-    with data <- ConnectionManager.encode_service(:large_forward_open),
-         _ <- do_send_rr_data(s, data),
-         {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
-         {:ok, conn} <- ConnectionManager.decode(resp) do
-      {structures, s} =
-        Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
-                                                      structure,
-                                                    {structures, s} ->
-          case read_template_instance(s, conn, template_instance) do
-            {:error, err} ->
-              {structures, s}
-
-            {:ok, template} ->
-              {[Map.put(structure, :template, template) | structures], s}
-          end
-        end)
-
-      close_conn(s, conn)
-      {:ok, %{s | tag_metadata: tags ++ structures}}
-    else
-      error ->
-        Logger.error("Error: #{inspect(error)}")
-        :gen_tcp.close(socket)
-        # return error and let DBConnection backoff
-        {:error, error}
     end
   end
 

@@ -95,11 +95,11 @@ defmodule Scrub.CIP.Template do
     end
   end
 
-  def decode_service(_, %{status: :too_much_data}, data) do
+  defp decode_service(_, %{status: :too_much_data}, data) do
     {:partial_data, data}
   end
 
-  def decode_service(
+  defp decode_service(
         :get_attribute_list_reply,
         %{status: :success},
         <<_count::uint, attributes::binary>>
@@ -107,7 +107,7 @@ defmodule Scrub.CIP.Template do
     {:ok, decode_attributes(attributes)}
   end
 
-  def decode_service(
+  defp decode_service(
         :read_template_service_reply,
         %{status: :success, member_count: member_count},
         data
@@ -116,34 +116,33 @@ defmodule Scrub.CIP.Template do
     {:ok, template}
   end
 
-  def decode_attributes(binary, acc \\ %{})
-  def decode_attributes(<<>>, acc), do: acc
+  defp decode_attributes(binary, acc \\ %{})
+  defp decode_attributes(<<>>, acc), do: acc
 
-  def decode_attributes(<<0x04::uint, _status::uint, def_size::udint, tail::binary>>, acc) do
+  defp decode_attributes(<<0x04::uint, _status::uint, def_size::udint, tail::binary>>, acc) do
     decode_attributes(tail, Map.put(acc, :definition_size, def_size))
   end
 
-  def decode_attributes(<<0x05::uint, _status::uint, struct_size::udint, tail::binary>>, acc) do
+  defp decode_attributes(<<0x05::uint, _status::uint, struct_size::udint, tail::binary>>, acc) do
     decode_attributes(tail, Map.put(acc, :structure_size, struct_size))
   end
 
-  def decode_attributes(<<0x02::uint, _status::uint, member_count::uint, tail::binary>>, acc) do
+  defp decode_attributes(<<0x02::uint, _status::uint, member_count::uint, tail::binary>>, acc) do
     decode_attributes(tail, Map.put(acc, :member_count, member_count))
   end
 
-  def decode_attributes(<<0x01::uint, _status::uint, crc::uint, tail::binary>>, acc) do
+  defp decode_attributes(<<0x01::uint, _status::uint, crc::uint, tail::binary>>, acc) do
     decode_attributes(tail, Map.put(acc, :crc, crc))
   end
 
-  def decode_template(member_count, bin) do
+  defp decode_template(member_count, bin) do
     <<member_info::binary(member_count, 64), names::binary>> = bin
     member_info = decode_member_info(member_info)
     {template_name, member_names} = decode_names(names)
 
     members =
-      Enum.zip_with([member_info, member_names], fn [info_map, name] ->
-        Map.put(info_map, :name, name)
-      end)
+      Enum.zip([member_info, member_names])
+      |> Enum.map(fn {info, name} -> Map.put(info, :name, name) end)
 
     %{template_name: template_name, members: members}
   end
@@ -157,7 +156,7 @@ defmodule Scrub.CIP.Template do
          acc
        ) do
     member =
-      case Scrub.CIP.Symbol.type_decode(type) do
+      case Symbol.type_decode(type) do
         :bool ->
           %{type: :bool, offset: offset, bit_location: len_or_loc}
 
