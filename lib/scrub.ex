@@ -126,33 +126,14 @@ defmodule Scrub do
     end
   end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   def read_template_instance(session, template_instance) do
     with {s, conn} <- Scrub.open_conn(session),
          data <-
            Scrub.CIP.Template.encode_service(:get_attribute_list, instance_id: template_instance),
          {:ok, resp} <- Scrub.Session.send_unit_data(s, conn, data),
          {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
-          template = read_template_chunks(s, conn, template_instance, template_attributes)
-          Scrub.close_conn({s, conn})
+      template = read_template_chunks(s, conn, template_instance, template_attributes)
+      Scrub.close_conn({s, conn})
       template
     else
       error ->

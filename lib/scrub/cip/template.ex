@@ -79,8 +79,8 @@ defmodule Scrub.CIP.Template do
   end
 
   def decode(
-        <<service, 0, status_code::usint, ext_status_size::usint,
-          _::binary(ext_status_size, 16), data::binary>> = payload,
+        <<service, 0, status_code::usint, ext_status_size::usint, _::binary(ext_status_size, 16),
+          data::binary>> = payload,
         meta \\ %{},
         additional_data \\ <<>>
       ) do
@@ -100,18 +100,18 @@ defmodule Scrub.CIP.Template do
   end
 
   defp decode_service(
-        :get_attribute_list_reply,
-        %{status: :success},
-        <<_count::uint, attributes::binary>>
-      ) do
+         :get_attribute_list_reply,
+         %{status: :success},
+         <<_count::uint, attributes::binary>>
+       ) do
     {:ok, decode_attributes(attributes)}
   end
 
   defp decode_service(
-        :read_template_service_reply,
-        %{status: :success, member_count: member_count},
-        data
-      ) do
+         :read_template_service_reply,
+         %{status: :success, member_count: member_count},
+         data
+       ) do
     template = decode_template(member_count, data)
     {:ok, template}
   end
