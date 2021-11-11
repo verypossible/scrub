@@ -374,7 +374,7 @@ defmodule Scrub.Session do
          {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
          {:ok, conn} <- ConnectionManager.decode(resp) do
       {structures, s} =
-        Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
+        Enum.reduce(structures, {[], s}, fn %{template_instance: template_instance} =
                                                       structure,
                                                     {structures, s} ->
           case read_template_instance(s, conn, template_instance) do
