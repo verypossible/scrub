@@ -191,13 +191,11 @@ defmodule Scrub do
           read_template_chunks(s, conn, template_instance, template_attributes, data)
 
         {:ok, template} ->
-          {:ok, template}
+          template
 
         {:error, _} = err ->
           err
       end
-    else
-      reason -> {:error, reason}
     end
   end
 
