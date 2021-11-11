@@ -368,38 +368,37 @@ defmodule Scrub.Session do
          s = do_send_unit_data(s, conn, data),
          {:ok, resp} = read_recv(s.socket, <<>>, s.timeout),
          {:ok, template_attributes} <- Scrub.CIP.Template.decode(resp) do
-      bytes = template_attributes.definition_size * 4 - 23
-
-      template = read_template_chunks(s, conn, template_instance, bytes)
-      {:ok, template}
+      read_template_chunks(s, conn, template_instance, template_attributes)
     else
       error ->
         {:error, error}
     end
   end
 
-  defp read_template_chunks(s, conn, template_instance, bytes, offset \\ 0, acc \\ <<>>) do
-    data =
-      Scrub.CIP.Template.encode_service(:read_template_service,
-        instance_id: template_instance,
-        bytes: bytes,
-        offset: offset
-      )
+  defp read_template_chunks(s, conn, template_instance, template_attributes, acc \\ <<>>) do
+    offset = byte_size(acc)
+    bytes = template_attributes.definition_size * 4 - 23 - offset
 
-    s = do_send_unit_data(s, conn, data)
-    {:ok, resp} = read_recv(s.socket, <<>>, s.timeout)
+    with data <-
+           Scrub.CIP.Template.encode_service(:read_template_service,
+             instance_id: template_instance,
+             bytes: bytes,
+             offset: offset
+           ),
+         s = do_send_unit_data(s, conn, data),
+         {:ok, resp} = read_recv(s.socket, <<>>, s.timeout) do
+      case Scrub.CIP.Template.decode(resp, template_attributes, acc) do
+        {:partial_data, data} ->
+          read_template_chunks(s, conn, template_instance, template_attributes, data)
 
-    case Scrub.CIP.Template.decode(resp, acc) do
-      {:partial_data, data, data_size} ->
-        bytes = bytes - data_size
-        offset = offset + data_size
-        read_template_chunks(s, conn, template_instance, bytes, offset, data)
+        {:ok, template} ->
+          {:ok, template}
 
-      {:ok, template} ->
-        template
-
-      {:error, err} ->
-        err
+        {:error, _} = err ->
+          err
+      end
+    else
+      reason -> {:error, reason}
     end
   end
 
