@@ -100,18 +100,18 @@ defmodule Scrub.CIP.Template do
   end
 
   def decode_service(
-         :get_attribute_list_reply,
-         %{status: :success},
-         <<_count::uint, attributes::binary>>
-       ) do
+        :get_attribute_list_reply,
+        %{status: :success},
+        <<_count::uint, attributes::binary>>
+      ) do
     {:ok, decode_attributes(attributes)}
   end
 
   def decode_service(
-         :read_template_service_reply,
-         %{status: :success, member_count: member_count},
-         data
-       ) do
+        :read_template_service_reply,
+        %{status: :success, member_count: member_count},
+        data
+      ) do
     template = decode_template(member_count, data)
     {:ok, template}
   end
@@ -144,8 +144,9 @@ defmodule Scrub.CIP.Template do
       Enum.zip([member_info, member_names])
       |> Enum.flat_map(fn
         {info, ""} ->
-          #hidden member
+          # hidden member
           []
+
         {info, name} ->
           [Map.put(info, :name, name)]
       end)
