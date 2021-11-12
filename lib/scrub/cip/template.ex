@@ -95,11 +95,11 @@ defmodule Scrub.CIP.Template do
     end
   end
 
-  defp decode_service(_, %{status: :too_much_data}, data) do
+  def decode_service(_, %{status: :too_much_data}, data) do
     {:partial_data, data}
   end
 
-  defp decode_service(
+  def decode_service(
          :get_attribute_list_reply,
          %{status: :success},
          <<_count::uint, attributes::binary>>
@@ -107,7 +107,7 @@ defmodule Scrub.CIP.Template do
     {:ok, decode_attributes(attributes)}
   end
 
-  defp decode_service(
+  def decode_service(
          :read_template_service_reply,
          %{status: :success, member_count: member_count},
          data
@@ -138,11 +138,17 @@ defmodule Scrub.CIP.Template do
   defp decode_template(member_count, bin) do
     <<member_info::binary(member_count, 64), names::binary>> = bin
     member_info = decode_member_info(member_info)
-    {template_name, member_names} = decode_names(names)
+    [template_name | member_names] = String.split(names, <<0x00>>)
 
     members =
       Enum.zip([member_info, member_names])
-      |> Enum.map(fn {info, name} -> Map.put(info, :name, name) end)
+      |> Enum.flat_map(fn
+        {info, ""} ->
+          #hidden member
+          []
+        {info, name} ->
+          [Map.put(info, :name, name)]
+      end)
 
     %{template_name: template_name, members: members}
   end
@@ -165,12 +171,5 @@ defmodule Scrub.CIP.Template do
       end
 
     decode_member_info(tail, [member | acc])
-  end
-
-  defp decode_names(names) do
-    [template_name | members] = String.split(names, <<0x00>>, trim: true)
-    [template_name | _garbage] = String.split(template_name, <<0x3B>>, trim: true)
-
-    {template_name, members}
   end
 end
