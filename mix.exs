@@ -14,14 +14,14 @@ defmodule Scrub.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:db_connection, "~> 2.2"},
+      {:db_connection, "~> 2.4"},
       {:ex_doc, "~> 0.18", only: [:dev, :test], runtime: false}
     ]
   end

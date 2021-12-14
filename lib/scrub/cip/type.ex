@@ -1,5 +1,5 @@
 defmodule Scrub.CIP.Type do
-  import Scrub.BinaryUtils, warn: false
+  import Scrub.BinaryUtils
 
   alias Scrub.CIP.Symbol
 

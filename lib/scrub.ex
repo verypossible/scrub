@@ -1,12 +1,9 @@
 defmodule Scrub do
-  import Scrub.BinaryUtils, warn: false
   def vendor, do: "ex"
   def serial_number, do: "pTLC"
 
   alias Scrub.CIP.ConnectionManager
   alias Scrub.Session
-
-  require IEx
 
   def open_session(host) do
     Scrub.Session.start_link(host)
