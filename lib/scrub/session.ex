@@ -369,27 +369,14 @@ defmodule Scrub.Session do
          {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
          {:ok, conn} <- ConnectionManager.decode(resp) do
       {structures, s} =
-        Enum.reduce(structures, {structures, s}, fn %{template_instance: template_instance} =
-                                                      structure,
-                                                    {structures, s} ->
-          data = Template.encode_service(:get_attribute_list, instance_id: template_instance)
-          s = do_send_unit_data(s, conn, data)
-
-          with {:ok, resp} <- read_recv(s.socket, <<>>, s.timeout),
-               {:ok, template_attributes} <- Template.decode(resp),
-               data <-
-                 Template.encode_service(:read_template_service,
-                   instance_id: template_instance,
-                   bytes: template_attributes.definition_size * 4 - 23
-                 ),
-               s <- do_send_unit_data(s, conn, data),
-               {:ok, resp} <- read_recv(socket, <<>>, s.timeout),
-               {:ok, template} <- Template.decode(resp) do
-            template = Map.merge(template_attributes, template)
-            {[Map.put(structure, :template, template) | structures], s}
-          else
-            _ ->
+        Enum.reduce(structures, {[], s}, fn %{template_instance: template_instance} = structure,
+                                            {structures, s} ->
+          case read_template_instance(s, conn, template_instance) do
+            {:error, _err} ->
               {structures, s}
+
+            {:ok, template} ->
+              {[Map.put(structure, :template, template) | structures], s}
           end
         end)
 
@@ -401,6 +388,44 @@ defmodule Scrub.Session do
         :gen_tcp.close(socket)
         # return error and let DBConnection backoff
         {:error, error}
+    end
+  end
+
+  defp read_template_instance(s, conn, template_instance) do
+    with data <-
+           Template.encode_service(:get_attribute_list, instance_id: template_instance),
+         s = do_send_unit_data(s, conn, data),
+         {:ok, resp} = read_recv(s.socket, <<>>, s.timeout),
+         {:ok, template_attributes} <- Template.decode(resp) do
+      read_template_chunks(s, conn, template_instance, template_attributes)
+    else
+      error ->
+        {:error, error}
+    end
+  end
+
+  defp read_template_chunks(s, conn, template_instance, template_attributes, acc \\ <<>>) do
+    offset = byte_size(acc)
+    bytes = template_attributes.definition_size * 4 - 23 - offset
+
+    with data <-
+           Scrub.CIP.Template.encode_service(:read_template_service,
+             instance_id: template_instance,
+             bytes: bytes,
+             offset: offset
+           ),
+         s = do_send_unit_data(s, conn, data),
+         {:ok, resp} = read_recv(s.socket, <<>>, s.timeout) do
+      case Scrub.CIP.Template.decode(resp, template_attributes, acc) do
+        {:partial_data, data} ->
+          read_template_chunks(s, conn, template_instance, template_attributes, data)
+
+        {:ok, template} ->
+          {:ok, template}
+
+        {:error, _} = err ->
+          err
+      end
     end
   end
 

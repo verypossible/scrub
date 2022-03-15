@@ -6,7 +6,9 @@ defmodule Scrub.CIP.Template do
 
   @services [
     get_attribute_list: 0x03,
-    read_template_service: 0x4C
+    get_attribute_list_reply: 0x83,
+    read_template_service: 0x4C,
+    read_template_service_reply: 0xCC
   ]
 
   def encode_service(_, _ \\ [])
@@ -51,6 +53,7 @@ defmodule Scrub.CIP.Template do
     instance_id = opts[:instance_id] || 0
     class = opts[:class] || 0x6C
     bytes = opts[:bytes]
+    offset = opts[:offset] || 0
 
     request_words = 3
 
@@ -63,7 +66,7 @@ defmodule Scrub.CIP.Template do
     >>
 
     request_data = <<
-      0x00::udint,
+      offset::udint,
       bytes::uint
     >>
 
@@ -76,116 +79,106 @@ defmodule Scrub.CIP.Template do
     >>
   end
 
-  def decode(<<1::size(1), service::size(7), 0, status_code::usint, size::usint, data::binary>>) do
-    <<service>> = <<0::size(1), service::size(7)>>
-
-    header = %{
-      status: CIP.status_code(status_code),
-      size: size
-    }
+  def decode(
+        <<service, 0, status_code::usint, ext_status_size::usint, _::binary(ext_status_size, 16),
+          data::binary>> = payload,
+        meta \\ %{},
+        additional_data \\ <<>>
+      ) do
+    meta = Map.merge(meta, %{status: CIP.status_code(status_code)})
 
     case Enum.find(@services, &(elem(&1, 1) == service)) do
       nil ->
-        {:error, {:not_implemented, data}}
+        {:error, {:not_implemented, payload}}
 
       {service, _} ->
-        decode_service(service, header, data)
+        decode_service(service, meta, additional_data <> data)
     end
   end
 
-  defp decode_service(
-         :get_attribute_list,
-         %{status: _status},
-         <<_count::uint, attributes::binary>>
-       ) do
-    {:ok, decode_attributes(attributes, [])}
+  def decode_service(_, %{status: :too_much_data}, data) do
+    {:partial_data, data}
   end
 
-  defp decode_service(:read_template_service, %{status: _status}, data) do
-    case String.split(data, <<0x3B>>, parts: 2) do
-      [member_info, member_names] ->
-        member_info_list = :binary.bin_to_list(member_info)
-
-        {template_name, member_info} =
-          Enum.reverse(member_info_list)
-          |> Enum.split_while(&String.printable?(<<&1>>))
-
-        template_name = Enum.reverse(template_name)
-
-        member_info =
-          member_info
-          |> Enum.reverse()
-          |> :binary.list_to_bin()
-
-        member_info = decode_member_info(member_info, [])
-        [_magic | member_names] = String.split(member_names, <<0x00>>)
-
-        members =
-          Enum.zip(member_names, member_info)
-          |> Enum.map(&Map.put(elem(&1, 1), :name, elem(&1, 0)))
-
-        payload = %{
-          template_name: to_string(template_name),
-          members: members
-        }
-
-        {:ok, payload}
-
-      _ ->
-        {:error, :broken}
-    end
+  def decode_service(
+        :get_attribute_list_reply,
+        %{status: :success},
+        <<_count::uint, attributes::binary>>
+      ) do
+    {:ok, decode_attributes(attributes)}
   end
 
-  defp decode_attributes(<<>>, acc), do: Enum.into(acc, %{})
-
-  defp decode_attributes(attributes, acc) do
-    {attribute, tail} = decode_attribute(attributes)
-    decode_attributes(tail, [attribute | acc])
+  def decode_service(
+        :read_template_service_reply,
+        %{status: :success, member_count: member_count},
+        data
+      ) do
+    template = decode_template(member_count, data)
+    {:ok, template}
   end
 
-  defp decode_attribute(<<0x04::uint, _status::uint, definition_size::udint, tail::binary>>) do
-    {{:definition_size, definition_size}, tail}
+  defp decode_attributes(binary, acc \\ %{})
+  defp decode_attributes(<<>>, acc), do: acc
+
+  defp decode_attributes(<<0x04::uint, _status::uint, def_size::udint, tail::binary>>, acc) do
+    decode_attributes(tail, Map.put(acc, :definition_size, def_size))
   end
 
-  defp decode_attribute(<<0x05::uint, _status::uint, structure_size::udint, tail::binary>>) do
-    {{:structure_size, structure_size}, tail}
+  defp decode_attributes(<<0x05::uint, _status::uint, struct_size::udint, tail::binary>>, acc) do
+    decode_attributes(tail, Map.put(acc, :structure_size, struct_size))
   end
 
-  defp decode_attribute(<<0x02::uint, _status::uint, member_count::uint, tail::binary>>) do
-    {{:member_count, member_count}, tail}
+  defp decode_attributes(<<0x02::uint, _status::uint, member_count::uint, tail::binary>>, acc) do
+    decode_attributes(tail, Map.put(acc, :member_count, member_count))
   end
 
-  defp decode_attribute(<<0x01::uint, _status::uint, crc::uint, tail::binary>>) do
-    {{:crc, crc}, tail}
+  defp decode_attributes(<<0x01::uint, _status::uint, crc::uint, tail::binary>>, acc) do
+    decode_attributes(tail, Map.put(acc, :crc, crc))
   end
 
+  defp decode_template(member_count, bin) do
+    <<member_info::binary(member_count, 64), names::binary>> = bin
+    member_info = decode_member_info(member_info)
+    {template_name, member_names} = decode_names(names)
+
+    members =
+      Enum.zip([member_info, member_names])
+      |> Enum.flat_map(fn
+        {info, ""} ->
+          # hidden member
+          []
+
+        {info, name} ->
+          [Map.put(info, :name, name)]
+      end)
+
+    %{template_name: template_name, members: members}
+  end
+
+  defp decode_member_info(binary, acc \\ [])
   defp decode_member_info(<<>>, acc), do: Enum.reverse(acc)
+  defp decode_member_info(<<0, 0>>, []), do: [%{type: :unknown, offset: 0}]
 
-  defp decode_member_info(member_info, acc) do
-    {member_info, tail} = decode_member_info(member_info)
-    decode_member_info(tail, [member_info | acc])
-  end
-
-  # empty array of size 0
-  defp decode_member_info(<<0, 0>>) do
-    member = %{type: :unknown, offset: 0}
-
-    {member, <<>>}
-  end
-
-  defp decode_member_info(<<array_length::uint, type::binary(2, 8), offset::udint, tail::binary>>) do
-    type = Symbol.type_decode(type)
-    member = %{type: type, offset: offset}
-
+  defp decode_member_info(
+         <<len_or_loc::uint, type::binary(2, 8), offset::udint, tail::binary>>,
+         acc
+       ) do
     member =
-      case type do
+      case Symbol.type_decode(type) do
         :bool ->
-          Map.put(member, :bit_location, array_length)
+          %{type: :bool, offset: offset, bit_location: len_or_loc}
 
-        _type ->
-          Map.put(member, :array_length, array_length)
+        other_type ->
+          %{type: other_type, offset: offset, array_length: len_or_loc}
       end
 
-    {member, tail}
+    decode_member_info(tail, [member | acc])
+  end
+
+  defp decode_names(names) do
+    [template_name | members] = String.split(names, <<0x00>>)
+    [template_name | _garbage] = String.split(template_name, <<0x3B>>, trim: true)
+
+    {template_name, members}
   end
 end

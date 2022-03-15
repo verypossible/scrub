@@ -54,6 +54,10 @@ defmodule Scrub.Session.CPF do
     end
   end
 
+  def decode(other) do
+    {:error, other}
+  end
+
   defp decode_item(<<0xB1::uint, size::uint, item_data::binary(size, 8), tail::binary>>) do
     <<_sequence_number::uint, item_data::binary>> = item_data
     {{:connected_data, item_data}, tail}

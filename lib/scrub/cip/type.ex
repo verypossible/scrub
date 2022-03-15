@@ -3,10 +3,7 @@ defmodule Scrub.CIP.Type do
 
   alias Scrub.CIP.Symbol
 
-  def decode(<<0xA0, 0x02, _crc::uint, data::binary>>, %{members: members} = structure) do
-    IO.puts("Template: #{structure.template_name}")
-    IO.inspect(structure)
-
+  def decode(<<0xA0, 0x02, _crc::uint, data::binary>>, %{members: members}) do
     Enum.reduce(members, [], fn
       %{name: <<"ZZZZZZZZZ", _tail::binary>>}, acc ->
         acc
@@ -19,10 +16,14 @@ defmodule Scrub.CIP.Type do
         [Map.put(member, :value, value) | acc]
 
       %{type: type, offset: offset, array_length: 0} = member, acc ->
-        IO.inspect(type)
-        <<_offset::binary(offset, 8), tail::binary()>> = data
-        {value, _tail} = decode_type_data(type, tail)
-        [Map.put(member, :value, value) | acc]
+        try do
+          <<_offset::binary(offset, 8), tail::binary()>> = data
+          {value, _tail} = decode_type_data(type, tail)
+          [Map.put(member, :value, value) | acc]
+        rescue
+          _ ->
+            acc
+        end
 
       %{type: type, offset: offset, array_length: length} = member, acc ->
         <<_offset::binary(offset, 8), data::binary()>> = data
