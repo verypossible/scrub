@@ -165,17 +165,15 @@ defmodule Scrub do
              bytes: bytes,
              offset: offset
            ),
-         {:ok, resp} <- Scrub.Session.send_unit_data(s, conn, data) do
-      case Scrub.CIP.Template.decode(resp, template_attributes, acc) do
-        {:partial_data, data} ->
-          read_template_chunks(s, conn, template_instance, template_attributes, data)
+         {:ok, resp} <- Scrub.Session.send_unit_data(s, conn, data),
+         {:ok, template} <- Scrub.CIP.Template.decode(resp, template_attributes, acc) do
+      template
+    else
+      {:partial_data, data} ->
+        read_template_chunks(s, conn, template_instance, template_attributes, data)
 
-        {:ok, template} ->
-          template
-
-        {:error, _} = err ->
-          err
-      end
+      {:error, _} = err ->
+        err
     end
   end
 
