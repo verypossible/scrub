@@ -158,7 +158,6 @@ defmodule Scrub do
   defp read_template_chunks(s, conn, template_instance, template_attributes, acc \\ <<>>) do
     offset = byte_size(acc)
     bytes = template_attributes.definition_size * 4 - 23 - offset
-    IO.inspect(%{bytes: bytes, offset: offset, data_size: byte_size(acc)})
 
     with data <-
            Scrub.CIP.Template.encode_service(:read_template_service,
@@ -166,7 +165,7 @@ defmodule Scrub do
              bytes: bytes,
              offset: offset
            ),
-         {:ok, resp} = Scrub.Session.send_unit_data(s, conn, data) do
+         {:ok, resp} <- Scrub.Session.send_unit_data(s, conn, data) do
       case Scrub.CIP.Template.decode(resp, template_attributes, acc) do
         {:partial_data, data} ->
           read_template_chunks(s, conn, template_instance, template_attributes, data)
