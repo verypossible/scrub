@@ -3,7 +3,7 @@ defmodule Scrub.Session.Protocol do
   EtherNet/IP Protocol
   """
 
-  import Scrub.BinaryUtils, warn: false
+  import Scrub.BinaryUtils
 
   alias Scrub.Session.CPF
   alias Scrub.CIP.Connection

@@ -3,7 +3,7 @@ defmodule Scrub.Session.CPF do
   2-6 Common Packet Format
   """
 
-  import Scrub.BinaryUtils, warn: false
+  import Scrub.BinaryUtils
 
   # 2-6.3 Item ID Numbers
   @item_ids [

@@ -1,5 +1,5 @@
 defmodule Scrub.CIP.ConnectionManager do
-  import Scrub.BinaryUtils, warn: false
+  import Scrub.BinaryUtils
 
   alias Scrub.CIP
   alias Scrub.CIP.Type

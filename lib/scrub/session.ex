@@ -181,11 +181,6 @@ defmodule Scrub.Session do
   end
 
   @impl true
-  def checkin(state) do
-    {:ok, state}
-  end
-
-  @impl true
   def checkout(state) do
     {:ok, state}
   end
